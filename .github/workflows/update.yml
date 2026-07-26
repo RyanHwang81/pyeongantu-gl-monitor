@@ -27,7 +27,19 @@ jobs:
         run: pip install pandas numpy
 
       - name: 데이터 갱신 및 빌드
-        run: python build.py --out dist
+        # FRED graph CSV occasionally times out from hosted runners. Keep the
+        # provided build.py calculation untouched and retry the whole fetch/build.
+        run: |
+          for attempt in 1 2 3; do
+            echo "[build] FRED fetch/build attempt ${attempt}/3"
+            if python build.py --out dist; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 30))
+            fi
+          done
+          exit 1
 
       - name: 변경사항 커밋
         run: |
