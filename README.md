@@ -44,14 +44,17 @@ python3 build.py --out dist
 - `--template PATH` 템플릿 경로 (기본 `gl_template.html`)
 - 환경변수 `GL_CACHE=/path` 지정 시 원본 CSV를 해당 폴더에 캐시 (재실행 시 네트워크 부하 감소)
 
-### GitHub Actions 설정
+### GitHub Actions / GitHub Pages 설정
 
 1. 이 폴더의 파일을 저장소 루트에 커밋 (`build.py`, `gl_template.html`, `README.md`)
 2. `update.yml` 을 `.github/workflows/update.yml` 경로로 저장
 3. 저장소 **Settings → Pages → Source** 를 `GitHub Actions` 로 설정
-4. **Actions** 탭에서 `Run workflow` 로 첫 실행 → 이후 자동 반복
+4. build job은 `self-hosted, macOS, gl-monitor` runner에서 실행합니다.  
+   FRED graph CSV가 GitHub-hosted runner IP에서 반복 timeout 되어 owner Mac mini runner를 사용합니다. 계산 로직(`build.py`)은 변경하지 않습니다.
+5. **Actions** 탭에서 `Run workflow` 로 첫 실행 → 이후 매월 1일·16일 09:00 UTC 자동 반복
 
-공개 URL은 `https://<계정>.github.io/<저장소>/` 이며 `index.html`(공개용)이 서빙됩니다. 내부용은 `.../gl-internal.html` 로 접근합니다.
+공개 URL은 `https://ryanhwang81.github.io/pyeongantu-gl-monitor/` 이며 `index.html`(공개용)만 iframe/블로그에 노출합니다.  
+`gl-internal.html`은 방법론 검토용이며 공개 글/iframe/버튼에서 링크하지 않습니다.
 
 ## 데이터 소스
 
