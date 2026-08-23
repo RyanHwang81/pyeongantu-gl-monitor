@@ -21,6 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 원고 준거 판정 계약 테스트
+        env:
+          PATH: /usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
+        run: /usr/local/bin/python3 -m unittest discover -s tests -v
+
       - name: 데이터 갱신 및 빌드
         env:
           PATH: /usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin

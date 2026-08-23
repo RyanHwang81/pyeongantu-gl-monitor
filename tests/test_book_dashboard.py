@@ -1,0 +1,131 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import build
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BOOK_DATA = ROOT / "book_dashboard.json"
+TEMPLATE = ROOT / "gl_template.html"
+
+
+class BookDashboardContractTests(unittest.TestCase):
+    def test_checked_in_seed_has_exactly_seven_chapter_27_indicators(self):
+        dashboard = build.load_book_dashboard(BOOK_DATA)
+        latest = dashboard["months"][-1]
+        indicators = latest["indicators"]
+
+        growth = [item for item in indicators.values() if item["axis"] == "growth"]
+        liquidity = [item for item in indicators.values() if item["axis"] == "liquidity"]
+
+        self.assertEqual(3, len(growth))
+        self.assertEqual(4, len(liquidity))
+        self.assertEqual(
+            {
+                "global_manufacturing_pmi",
+                "korea_semiconductor_exports",
+                "leading_industry_earnings_revision",
+                "fed_next_move_expectation",
+                "dollar_index_trend",
+                "high_yield_spread",
+                "usdkrw_position",
+            },
+            set(indicators),
+        )
+        for item in indicators.values():
+            self.assertIn(item["direction"], {"up", "down", "flat", "pending"})
+            self.assertIn(item["effect"], {"up", "down", "flat", "pending"})
+            self.assertIn(item["state"], {"confirmed", "provisional", "pending"})
+            self.assertTrue(item["source_name"])
+            self.assertRegex(item["as_of"], r"^\d{4}-\d{2}")
+
+    def test_manuscript_seed_judges_2026_06_as_selection(self):
+        dashboard = build.load_book_dashboard(BOOK_DATA)
+        result = build.judge_book_month(dashboard["months"][-1], previous_regime=None)
+
+        self.assertEqual("up", result["growth"])
+        self.assertEqual("down", result["liquidity"])
+        self.assertEqual("selection", result["regime"])
+        self.assertEqual("confirmed", result["status"])
+        self.assertFalse(result["held_previous"])
+        self.assertEqual(7, result["complete_count"])
+
+    def test_tie_breakers_use_earnings_revision_and_credit_spread(self):
+        month = {
+            "date": "2026-07",
+            "indicators": {
+                "global_manufacturing_pmi": {"axis": "growth", "effect": "up", "state": "confirmed"},
+                "korea_semiconductor_exports": {"axis": "growth", "effect": "down", "state": "confirmed"},
+                "leading_industry_earnings_revision": {"axis": "growth", "effect": "up", "state": "confirmed"},
+                "fed_next_move_expectation": {"axis": "liquidity", "effect": "up", "state": "confirmed"},
+                "dollar_index_trend": {"axis": "liquidity", "effect": "down", "state": "confirmed"},
+                "high_yield_spread": {"axis": "liquidity", "effect": "down", "state": "confirmed"},
+                "usdkrw_position": {"axis": "liquidity", "effect": "up", "state": "confirmed"},
+            },
+        }
+
+        result = build.judge_book_month(month, previous_regime="expansion")
+        self.assertEqual("up", result["growth"])
+        self.assertEqual("down", result["liquidity"])
+        self.assertEqual("selection", result["regime"])
+
+    def test_incomplete_or_unresolved_month_holds_previous_regime(self):
+        dashboard = build.load_book_dashboard(BOOK_DATA)
+        month = json.loads(json.dumps(dashboard["months"][-1]))
+        month["date"] = "2026-07"
+        month["indicators"]["leading_industry_earnings_revision"].update(
+            {"effect": "pending", "direction": "pending", "state": "pending"}
+        )
+
+        result = build.judge_book_month(month, previous_regime="selection")
+        self.assertEqual("selection", result["regime"])
+        self.assertEqual("provisional", result["status"])
+        self.assertTrue(result["held_previous"])
+        self.assertEqual(6, result["complete_count"])
+
+    def test_invalid_indicator_direction_is_rejected(self):
+        payload = json.loads(BOOK_DATA.read_text(encoding="utf-8"))
+        payload["months"][0]["indicators"]["global_manufacturing_pmi"]["effect"] = "strongly_up"
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "bad.json"
+            path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid effect"):
+                build.load_book_dashboard(path)
+
+    def test_public_render_puts_book_dashboard_first_and_labels_legacy_model(self):
+        dashboard = build.load_book_dashboard(BOOK_DATA)
+        legacy = {
+            "meta": {
+                "generated": "2026-08-16",
+                "latest": "2026-07",
+                "g_weights": {},
+                "l_weights": {},
+                "g_labels": {},
+                "l_labels": {},
+                "asset_labels": {},
+            },
+            "months": [],
+        }
+        html = build.render(TEMPLATE.read_text(encoding="utf-8"), legacy, dashboard, public=True)
+
+        self.assertIn('id="book-dashboard"', html)
+        self.assertIn("원고 준거 월간 판독", html)
+        self.assertIn("글로벌 제조업 PMI", html)
+        self.assertIn("한국 반도체 수출", html)
+        self.assertIn("주도 산업 이익 전망치", html)
+        self.assertIn("연준의 다음 행보 기대", html)
+        self.assertIn("달러인덱스 추세", html)
+        self.assertIn("하이일드 스프레드", html)
+        self.assertIn("원달러 환율 위치", html)
+        self.assertIn("미국 매크로 정량 보조모델", html)
+        self.assertIn("다음 국면을 예측하는 규칙이 아닙니다", html)
+        self.assertLess(html.index('id="book-dashboard"'), html.index('id="quant-reference"'))
+        self.assertNotIn("gl-internal", html)
+        self.assertNotIn("__BOOK_DATA__", html)
+        self.assertNotIn("__GL_DATA__", html)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "methodology": "제27장 나만의 GL 대시보드 — 30분 월간 점검 루틴",
+    "methodology_en": "Chapter 27 — Personal GL Dashboard: 30-minute monthly review",
+    "latest_confirmed": "2026-06",
+    "update_mode": "manual_hybrid",
+    "indicator_count": 7,
+    "note_ko": "지표를 먼저 확인하고, 해설은 나중에 읽습니다. 값의 크기보다 방향을 기록합니다.",
+    "note_en": "Check the indicators before reading commentary. Record direction rather than overfitting the level."
+  },
+  "months": [
+    {
+      "date": "2026-06",
+      "status": "confirmed",
+      "source_basis_ko": "저자 월간 점검 기록",
+      "source_basis_en": "Author's monthly review record",
+      "indicators": {
+        "global_manufacturing_pmi": {
+          "axis": "growth",
+          "label_ko": "글로벌 제조업 PMI",
+          "label_en": "Global Manufacturing PMI",
+          "direction": "up",
+          "effect": "up",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "S&P Global PMI",
+          "source_url": "https://www.spglobal.com/marketintelligence/en/mi/products/pmi.html",
+          "reading_ko": "개선",
+          "reading_en": "Improving"
+        },
+        "korea_semiconductor_exports": {
+          "axis": "growth",
+          "label_ko": "한국 반도체 수출",
+          "label_en": "Korean Semiconductor Exports",
+          "direction": "up",
+          "effect": "up",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "산업통상자원부 수출입 동향",
+          "source_url": "https://www.motie.go.kr/",
+          "reading_ko": "증가",
+          "reading_en": "Rising"
+        },
+        "leading_industry_earnings_revision": {
+          "axis": "growth",
+          "label_ko": "주도 산업 이익 전망치",
+          "label_en": "Leading-industry Earnings Revisions",
+          "direction": "up",
+          "effect": "up",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "주도 산업 컨센서스 월간 점검",
+          "source_url": "",
+          "reading_ko": "상향",
+          "reading_en": "Revised up"
+        },
+        "fed_next_move_expectation": {
+          "axis": "liquidity",
+          "label_ko": "연준의 다음 행보 기대",
+          "label_en": "Expected Next Fed Move",
+          "direction": "down",
+          "effect": "down",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "CME FedWatch",
+          "source_url": "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html",
+          "reading_ko": "인상 시사 — 유동성 악화",
+          "reading_en": "Hike signal — tighter liquidity"
+        },
+        "dollar_index_trend": {
+          "axis": "liquidity",
+          "label_ko": "달러인덱스 추세",
+          "label_en": "Dollar-index Trend",
+          "direction": "up",
+          "effect": "down",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "FRED DTWEXBGS 방향 대용치",
+          "source_url": "https://fred.stlouisfed.org/series/DTWEXBGS",
+          "reading_ko": "강달러 — 유동성 악화",
+          "reading_en": "Stronger dollar — tighter liquidity"
+        },
+        "high_yield_spread": {
+          "axis": "liquidity",
+          "label_ko": "하이일드 스프레드",
+          "label_en": "High-yield Spread",
+          "direction": "flat",
+          "effect": "flat",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "FRED BAMLH0A0HYM2",
+          "source_url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+          "reading_ko": "보합",
+          "reading_en": "Stable"
+        },
+        "usdkrw_position": {
+          "axis": "liquidity",
+          "label_ko": "원달러 환율 위치",
+          "label_en": "USD/KRW Position",
+          "direction": "up",
+          "effect": "down",
+          "state": "confirmed",
+          "as_of": "2026-06",
+          "source_name": "FRED DEXKOUS",
+          "source_url": "https://fred.stlouisfed.org/series/DEXKOUS",
+          "reading_ko": "상승 — 한국 유동성 악화",
+          "reading_en": "Higher USD/KRW — tighter Korean liquidity"
+        }
+      },
+      "event_ko": "새 연준 의장의 연내 인상 시사는 유동성 방향을 바꿀 후보 신호로 봤고, 중동발 급락과 반등은 주도 산업의 성장 증거를 훼손하지 않은 단기 충격으로 분류했습니다.",
+      "event_en": "The new Fed chair's signal of a possible rate increase was treated as a candidate liquidity shift, while the Middle East-driven selloff and rebound was classified as a short-lived shock that did not damage the leading industry's growth evidence.",
+      "action_ko": "선별의 방이 유지됐으므로 포트폴리오를 바꾸지 않았습니다. 급락 당일의 신규 판단은 미루고 계획된 범위 안에서만 움직였습니다.",
+      "action_en": "The selection regime remained in place, so the portfolio was left unchanged. New decisions were deferred on the selloff day, with action limited to the pre-set plan."
+    }
+  ],
+  "historical_cycle": {
+    "order": ["winter", "liquidity", "expansion", "selection"],
+    "notice_ko": "과거에 자주 관찰된 대표 이동 경로입니다. 다음 국면을 예측하는 규칙이 아닙니다.",
+    "notice_en": "This is a frequently observed historical path, not a rule that predicts the next regime."
+  }
+}
