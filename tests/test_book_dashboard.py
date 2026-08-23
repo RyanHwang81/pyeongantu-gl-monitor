@@ -126,6 +126,12 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertNotIn("__BOOK_DATA__", html)
         self.assertNotIn("__GL_DATA__", html)
 
+    def test_narrow_embed_stacks_header_before_title_is_squeezed(self):
+        template = TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn("@media(max-width:360px)", template)
+        self.assertIn("header{flex-direction:column", template)
+        self.assertIn(".hdr-right{width:100%;flex-direction:row", template)
+
 
 if __name__ == "__main__":
     unittest.main()
