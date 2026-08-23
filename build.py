@@ -13,6 +13,7 @@
 매월 자동 실행은 .github/workflows/update.yml (GitHub Actions) 참고.
 """
 import argparse, io, json, os, sys, time
+from pathlib import Path
 import urllib.request
 import pandas as pd
 import numpy as np
@@ -23,6 +24,89 @@ SPX_URL  = "https://raw.githubusercontent.com/datasets/s-and-p-500/main/data/dat
 GOLD_URL = "https://raw.githubusercontent.com/datasets/gold-prices/main/data/monthly.csv"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; pyeongantoo-gl-builder/1.0)"}
 CACHE = os.environ.get("GL_CACHE", "")   # 값이 있으면 해당 폴더의 CSV를 우선 사용
+BOOK_DATA = Path(__file__).with_name("book_dashboard.json")
+BOOK_INDICATORS = {
+    "global_manufacturing_pmi": "growth",
+    "korea_semiconductor_exports": "growth",
+    "leading_industry_earnings_revision": "growth",
+    "fed_next_move_expectation": "liquidity",
+    "dollar_index_trend": "liquidity",
+    "high_yield_spread": "liquidity",
+    "usdkrw_position": "liquidity",
+}
+BOOK_DIRECTIONS = {"up", "down", "flat", "pending"}
+BOOK_STATES = {"confirmed", "provisional", "pending"}
+BOOK_REGIMES = {
+    ("up", "up"): "expansion",
+    ("up", "down"): "selection",
+    ("down", "up"): "liquidity",
+    ("down", "down"): "winter",
+}
+
+
+def _axis_direction(indicators, axis):
+    effects = [item["effect"] for item in indicators.values() if item["axis"] == axis]
+    up, down = effects.count("up"), effects.count("down")
+    if up > down:
+        return "up"
+    if down > up:
+        return "down"
+    tie_key = "leading_industry_earnings_revision" if axis == "growth" else "high_yield_spread"
+    tie = indicators.get(tie_key, {}).get("effect")
+    return tie if tie in {"up", "down"} else "flat"
+
+
+def judge_book_month(month, previous_regime=None):
+    indicators = month["indicators"]
+    complete_count = sum(
+        item["effect"] != "pending" and item["state"] != "pending"
+        for item in indicators.values()
+    )
+    growth = _axis_direction(indicators, "growth")
+    liquidity = _axis_direction(indicators, "liquidity")
+    candidate = BOOK_REGIMES.get((growth, liquidity))
+    unresolved = complete_count < len(BOOK_INDICATORS) or candidate is None
+    held_previous = bool(unresolved and previous_regime)
+    regime = previous_regime if held_previous else candidate
+    status = "confirmed" if complete_count == len(BOOK_INDICATORS) and candidate else "provisional"
+    return {
+        "growth": growth,
+        "liquidity": liquidity,
+        "regime": regime or "undetermined",
+        "status": status,
+        "held_previous": held_previous,
+        "complete_count": complete_count,
+        "total_count": len(BOOK_INDICATORS),
+    }
+
+
+def load_book_dashboard(path=BOOK_DATA):
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    months = data.get("months") or []
+    if not months:
+        raise ValueError("book dashboard needs at least one month")
+    previous = None
+    for month in months:
+        indicators = month.get("indicators") or {}
+        if set(indicators) != set(BOOK_INDICATORS):
+            raise ValueError("book dashboard must contain the exact seven Chapter 27 indicators")
+        for key, expected_axis in BOOK_INDICATORS.items():
+            item = indicators[key]
+            if item.get("axis") != expected_axis:
+                raise ValueError(f"invalid axis for {key}")
+            if item.get("direction") not in BOOK_DIRECTIONS:
+                raise ValueError(f"invalid direction for {key}")
+            if item.get("effect") not in BOOK_DIRECTIONS:
+                raise ValueError(f"invalid effect for {key}")
+            if item.get("state") not in BOOK_STATES:
+                raise ValueError(f"invalid state for {key}")
+            if not item.get("source_name") or not item.get("as_of"):
+                raise ValueError(f"missing source/as_of for {key}")
+        month["judgment"] = judge_book_month(month, previous)
+        if month["judgment"]["regime"] != "undetermined":
+            previous = month["judgment"]["regime"]
+    data["meta"]["latest_judgment"] = months[-1]["judgment"]
+    return data
 
 def fetch(url, tries=4):
     last = None
@@ -141,7 +225,7 @@ def build_data():
     nn = lambda v: None if pd.isna(v) else v
     out = {
         "meta": {
-            "generated": pd.Timestamp.utcnow().strftime("%Y-%m-%d"),
+            "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d"),
             "latest": df.index[-1].strftime("%Y-%m"),
             "window": WINDOW, "min_obs": MIN_OBS,
             "g_weights": {k: v["w"] for k, v in G_COMP.items()},
@@ -163,8 +247,9 @@ def build_data():
         f"G={df.G.iloc[-1]:+.2f} L={df.L.iloc[-1]:+.2f} ({df.regime.iloc[-1]})")
     return out
 
-def render(template, data, public):
+def render(template, data, book_data, public):
     html = template.replace("__GL_DATA__", json.dumps(data, ensure_ascii=False))
+    html = html.replace("__BOOK_DATA__", json.dumps(book_data, ensure_ascii=False))
     if public:
         s, e = html.find("<!--METHOD_START-->"), html.find("<!--METHOD_END-->")
         if s != -1 and e != -1:
@@ -178,10 +263,11 @@ def main():
     a = ap.parse_args()
     tpl = open(a.template, encoding="utf-8").read()
     data = build_data()
+    book_data = load_book_dashboard()
     os.makedirs(a.out, exist_ok=True)
     for name, pub in [("index.html", True), ("gl-internal.html", False)]:
         p = os.path.join(a.out, name)
-        open(p, "w", encoding="utf-8").write(render(tpl, data, pub))
+        open(p, "w", encoding="utf-8").write(render(tpl, data, book_data, pub))
         print(f"[build] {p}  ({os.path.getsize(p)//1024} KB, {'공개용' if pub else '내부용'})")
     with open(os.path.join(a.out, "gl_data.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)

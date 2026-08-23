@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>평안투 · GL 레짐 모니터</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237a4a2b'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='%23fffdf9'%3E%E5%B9%B3%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -149,8 +150,53 @@ select{font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);bac
 .impr b{color:var(--ink)}
 .sec-title{font-size:17px;font-weight:900;letter-spacing:-.4px;margin-top:34px}
 .sec-sub{font-size:13px;color:var(--ink3);margin-top:4px}
+.book-dashboard{margin:26px 0 34px}
+.book-hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:16px;margin-bottom:16px}
+.book-intro,.book-regime,.book-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.book-intro{padding:24px 26px;border-top:4px solid var(--brand)}
+.book-kicker{font:700 11px/1.4 var(--mono);letter-spacing:.12em;color:var(--brand);text-transform:uppercase}
+.book-intro h2{font-size:clamp(24px,3vw,36px);line-height:1.18;letter-spacing:-.04em;margin:9px 0 10px}
+.book-intro p{font-size:14px;line-height:1.75;color:var(--ink2)}
+.book-regime{padding:22px 24px;background:linear-gradient(145deg,#fffdf9,#f5f0e8)}
+.book-regime .label{font:700 11px/1.4 var(--mono);letter-spacing:.08em;color:var(--ink3)}
+.book-regime .name{font-size:28px;font-weight:900;margin:9px 0 5px}
+.book-regime .axes{font:700 14px/1.5 var(--mono);color:var(--brand)}
+.book-regime .status{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:6px;background:#efe7da;color:var(--ink2);font-size:11px;font-weight:700}
+.book-panel{padding:22px 24px;margin-top:16px}
+.book-panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:14px}
+.book-panel-head h3{font-size:18px;letter-spacing:-.03em}
+.book-panel-head p{font-size:12px;color:var(--ink3);text-align:right}
+.indicator-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.indicator-card{border:1px solid var(--line);border-radius:12px;padding:14px 15px;background:var(--card2)}
+.indicator-card .axis{font:700 10.5px/1.4 var(--mono);letter-spacing:.08em;color:var(--ink3)}
+.indicator-card .title{font-size:14px;font-weight:800;margin:5px 0 4px}
+.indicator-card .reading{font-size:12px;color:var(--ink2);line-height:1.55}
+.indicator-card .arrow{float:right;font:800 21px/1 var(--mono)}
+.indicator-card .effect{font-size:10.5px;color:var(--ink3);margin-top:6px}
+.indicator-card.effect-up .arrow{color:var(--exp)}
+.indicator-card.effect-down .arrow{color:var(--def)}
+.indicator-card.effect-flat .arrow{color:var(--adj)}
+.indicator-card.effect-pending .arrow{color:var(--ink3)}
+.book-record{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.record-card{border-left:3px solid var(--brand);background:var(--card2);padding:14px 16px}
+.record-card b{display:block;font:700 10.5px/1.4 var(--mono);letter-spacing:.08em;color:var(--brand);margin-bottom:5px}
+.record-card p{font-size:13px;line-height:1.65;color:var(--ink2)}
+.cycle-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:stretch}
+.cycle-step{position:relative;border:1px solid var(--line);border-radius:10px;padding:13px 10px;text-align:center;background:var(--card2);font-size:12px;font-weight:800}
+.cycle-step:not(:last-child)::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);z-index:2;color:var(--brand);font-weight:900}
+.cycle-note{font-size:12px;color:var(--ink3);line-height:1.6;margin-top:12px}
+.quant-reference{margin-top:34px;border-top:2px solid var(--line2);padding-top:18px}
+.quant-reference>details>summary{cursor:pointer;list-style:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:17px 20px;font-weight:900;box-shadow:var(--shadow)}
+.quant-reference>details>summary::-webkit-details-marker{display:none}
+.quant-reference>details>summary span{display:block;font-size:12px;font-weight:500;color:var(--ink3);margin-top:5px}
+.quant-reference>details[open]>summary{border-color:var(--line2)}
 footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;color:var(--ink3);line-height:1.8}
 @media(max-width:1080px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.method-grid{grid-template-columns:1fr}}
+@media(max-width:720px){
+  .wrap{padding:0 14px 56px}.hdr-right{flex-direction:column;align-items:flex-end;gap:5px}.pill{font-size:10.5px;padding:5px 9px}
+  .book-hero,.indicator-grid,.book-record{grid-template-columns:1fr}.cycle-row{grid-template-columns:1fr 1fr}
+  .cycle-step::after{display:none}.book-panel,.book-intro,.book-regime{padding:18px}.book-panel-head{align-items:flex-start;flex-direction:column}.book-panel-head p{text-align:left}
+}
 </style>
 </head>
 <body>
@@ -161,14 +207,58 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
     <div class="logo">平</div>
     <div>
       <h1>평안투 <span style="color:var(--brand);font-weight:900">GL 레짐 모니터</span></h1>
-      <div class="sub">Global Macro Growth · Liquidity Regime Map</div>
+      <div class="sub">Chapter 27 Monthly Judgment · U.S. Macro Reference</div>
     </div>
   </div>
   <div class="hdr-right">
-    <span class="pill">데이터 기준월 <b id="hdr-latest">—</b></span>
-    <span class="pill">소스 <b>FRED (St. Louis Fed)</b></span>
+    <span class="pill">판독 기록 <b id="book-latest">—</b></span>
+    <span class="pill">정량 보조모델 <b id="hdr-latest">—</b></span>
   </div>
 </header>
+
+<main id="book-dashboard" class="book-dashboard">
+  <div class="book-hero">
+    <section class="book-intro">
+      <div class="book-kicker">Chapter 27 · Primary dashboard</div>
+      <h2>원고 준거 월간 판독</h2>
+      <p>성장 3개와 유동성 4개, 모두 일곱 지표의 <b>방향</b>을 한 달에 한 번 확인합니다. 지표가 엇갈리거나 아직 발표되지 않았다면 새 방을 서둘러 선언하지 않고 이전 판정을 유지합니다.</p>
+    </section>
+    <section class="book-regime" aria-live="polite">
+      <div class="label">LATEST CONFIRMED JUDGMENT</div>
+      <div class="name" id="book-regime-name">—</div>
+      <div class="axes" id="book-regime-axes">—</div>
+      <div class="status" id="book-regime-status">—</div>
+    </section>
+  </div>
+
+  <section class="book-panel">
+    <div class="book-panel-head"><h3>일곱 개의 계기판</h3><p>화살표는 지표 자체의 움직임, 아래 문장은 G/L에 미치는 방향입니다.</p></div>
+    <div class="indicator-grid" id="book-indicators"></div>
+  </section>
+
+  <section class="book-panel">
+    <div class="book-panel-head"><h3>이번 달 세 줄 기록</h3><p id="book-record-date">—</p></div>
+    <div class="book-record">
+      <div class="record-card"><b>EVENT · 가장 큰 이벤트</b><p id="book-event">—</p></div>
+      <div class="record-card"><b>ACTION · 행동 또는 하지 않은 결정</b><p id="book-action">—</p></div>
+    </div>
+  </section>
+
+  <section class="book-panel">
+    <div class="book-panel-head"><h3>부록 3 · 역사적 대표 이동 경로</h3><p>위치 확인용 참고 지도</p></div>
+    <div class="cycle-row">
+      <div class="cycle-step">겨울<br><small>G↓ L↓</small></div>
+      <div class="cycle-step">유동성 장세<br><small>G↓ L↑</small></div>
+      <div class="cycle-step">확장<br><small>G↑ L↑</small></div>
+      <div class="cycle-step">선별<br><small>G↑ L↓</small></div>
+    </div>
+    <p class="cycle-note" id="cycle-note">과거에 자주 관찰된 대표 이동 경로입니다. 다음 국면을 예측하는 규칙이 아닙니다.</p>
+  </section>
+</main>
+
+<section id="quant-reference" class="quant-reference">
+<details>
+<summary>미국 매크로 정량 보조모델 열기<span>FRED 기반 18년 롤링 z-score 모델입니다. 원고의 일곱 지표 판독과는 계산 기준과 기준월이 다릅니다.</span></summary>
 
 <div class="kpis">
   <div class="kpi regime-kpi">
@@ -304,16 +394,58 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
   </div>
 </div>
 <!--METHOD_END-->
+</details>
+</section>
 
 <footer>
-  <div><b>평안투 GL 레짐 모니터</b> · 데이터: Federal Reserve Economic Data (FRED), Federal Reserve Bank of St. Louis · 산출 기준일: <span id="ft-gen">—</span> · 데이터 기준월: <span id="ft-latest">—</span></div>
-  <div>매월 자동 갱신 — 신규 월 데이터가 확정되면 차트에 해당 월이 자동으로 추가됩니다. 다음 갱신 예정: <span id="ft-next">—</span></div>
-  <div>본 자료는 정보 제공 목적이며 특정 상품의 매매 권유 또는 투자 자문이 아닙니다. 과거 데이터에 기반한 레짐 분류는 미래 성과를 보장하지 않습니다.</div>
+  <div><b>평안투 GL 레짐 모니터</b> · 원고 준거 판독 기준월: <span id="ft-book-latest">—</span> · 미국 정량 보조모델 산출일: <span id="ft-gen">—</span> · 보조모델 기준월: <span id="ft-latest">—</span></div>
+  <div>원고 준거 판독은 월간 확인 기록이 추가될 때 갱신됩니다. 미국 정량 보조모델의 다음 자동 갱신 예정: <span id="ft-next">—</span></div>
+  <div>두 층은 목적과 산식이 다릅니다. 원고 준거 판독은 행동 규율을 위한 주 화면이고, FRED 모델은 미국 매크로의 장기 상대 위치를 보는 참고 화면입니다.</div>
 </footer>
 </div>
 
 <script>
+const BOOK = __BOOK_DATA__;
 const DATA = __GL_DATA__;
+const BOOK_REGIMES = {
+  expansion:{ko:"확장",tag:"G↑ L↑"},
+  selection:{ko:"선별",tag:"G↑ L↓"},
+  liquidity:{ko:"유동성 장세",tag:"G↓ L↑"},
+  winter:{ko:"겨울",tag:"G↓ L↓"},
+  undetermined:{ko:"판정 보류",tag:"—"}
+};
+const BOOK_ARROWS={up:"↑",down:"↓",flat:"→",pending:"·"};
+
+function renderBookDashboard(){
+  const month=BOOK.months[BOOK.months.length-1], judgment=month.judgment;
+  const regime=BOOK_REGIMES[judgment.regime]||BOOK_REGIMES.undetermined;
+  document.getElementById("book-latest").textContent=month.date;
+  document.getElementById("ft-book-latest").textContent=month.date;
+  document.getElementById("book-regime-name").textContent=regime.ko;
+  document.getElementById("book-regime-axes").textContent=regime.tag;
+  document.getElementById("book-regime-status").textContent=
+    (judgment.status==="confirmed"?"확정 기록":"잠정 · 이전 방 유지")+" · "+judgment.complete_count+"/"+judgment.total_count+" 지표 확인";
+  document.getElementById("book-record-date").textContent=month.date+" · "+month.source_basis_ko;
+  document.getElementById("book-event").textContent=month.event_ko;
+  document.getElementById("book-action").textContent=month.action_ko;
+  document.getElementById("cycle-note").textContent=BOOK.historical_cycle.notice_ko;
+
+  const box=document.getElementById("book-indicators"); box.innerHTML="";
+  Object.values(month.indicators).forEach(item=>{
+    const card=document.createElement("article");
+    card.className="indicator-card effect-"+item.effect;
+    const arrow=document.createElement("span"); arrow.className="arrow"; arrow.textContent=BOOK_ARROWS[item.direction];
+    const axis=document.createElement("div"); axis.className="axis"; axis.textContent=item.axis==="growth"?"GROWTH":"LIQUIDITY";
+    axis.appendChild(arrow);
+    const title=document.createElement("div"); title.className="title"; title.textContent=item.label_ko;
+    const reading=document.createElement("div"); reading.className="reading"; reading.textContent=item.reading_ko;
+    const effect=document.createElement("div"); effect.className="effect";
+    const effectText=item.effect==="up"?"개선":item.effect==="down"?"악화":item.effect==="flat"?"중립":"미발표";
+    effect.textContent=(item.axis==="growth"?"G":"L")+" 영향: "+effectText+" · "+item.as_of+" · "+item.source_name;
+    card.append(axis,title,reading,effect); box.appendChild(card);
+  });
+}
+renderBookDashboard();
 /* ---------- constants ---------- */
 const RG = {
   liquidity:{ko:"유동성",tag:"G−/L+",color:"var(--liq)",hex:"#2f6fb0",bg:"var(--liq-bg)",desc:"성장 둔화 속 완화적 유동성 — 금융장세"},
