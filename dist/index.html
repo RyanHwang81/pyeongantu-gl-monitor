@@ -204,6 +204,8 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
   .cycle-step::after{display:none}.book-panel,.book-intro,.book-regime{padding:18px}.book-panel-head{align-items:flex-start;flex-direction:column}.book-panel-head p{text-align:left}
   .chart-card .card-h{align-items:flex-start;flex-direction:column;gap:5px}.movement-summary{grid-template-columns:1fr}
   .statusbar{align-items:flex-start;flex-direction:column;gap:5px}
+  .pt-label{font-size:18px;stroke-width:4px}.tick-lab{font-size:15px}.axis-lab{font-size:17px}
+  .qlab{font-size:17px}.qlab2{font-size:15px}.neutral-label{font-size:14px}
 }
 @media(max-width:360px){
   header{flex-direction:column;align-items:flex-start;gap:12px}
@@ -587,10 +589,11 @@ function shouldLabelPoint(point,index,points,annual){
   if(index===0||index===points.length-1)return true;
   if(annual){
     if(points.length<=12)return true;
-    return +point.d%5===0||point.d===state.selected.d.slice(0,4);
+    return +point.d%10===0||point.d===state.selected.d.slice(0,4);
   }
   const month=point.d.slice(5);
-  return ["03","06","09","12"].includes(month)||point.d===state.selected.d;
+  const milestones=innerWidth<=500?["06","12"]:["03","06","09","12"];
+  return milestones.includes(month)||point.d===state.selected.d;
 }
 function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
   const svg=$(svgId),tooltip=$(tooltipId),annual=options.annual;
