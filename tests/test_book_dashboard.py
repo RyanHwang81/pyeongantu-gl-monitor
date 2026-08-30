@@ -152,6 +152,9 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn('aria-label="최근 이동 기간"', template)
         self.assertIn('aria-label="장기 국면 기간"', template)
         self.assertIn('role:"button"', template)
+        self.assertIn("function equalUnitRanges(points)", template)
+        self.assertIn("ranges:{gx:[-3,3],ly:[-3,3]}", template)
+        self.assertIn("중립·전환 ±0.15", template)
         self.assertIn('"gl-height"', template)
 
 
