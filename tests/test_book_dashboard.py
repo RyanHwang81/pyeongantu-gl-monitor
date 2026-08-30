@@ -144,6 +144,8 @@ class BookDashboardContractTests(unittest.TestCase):
             template,
         )
         self.assertIn("연간 평균 · 고정축 ±3", template)
+        self.assertIn("당해연도는 발표된 최신 월까지의 연중 평균입니다", template)
+        self.assertIn("function annualPointLabel(point)", template)
         self.assertIn('id="recent-period-sel"', template)
         self.assertIn('id="annual-period-sel"', template)
         self.assertNotIn('id="mode-seg"', template)

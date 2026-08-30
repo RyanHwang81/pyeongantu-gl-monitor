@@ -324,7 +324,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 
     <div class="card chart-card" id="annual-regime-card">
       <div class="card-h"><h2>장기 GL 국면 지도</h2><div class="hint">연간 평균으로 역사적 위치와 국면 전환을 비교합니다</div></div>
-      <p class="chart-purpose"><strong>연간 평균 · 고정축 ±3</strong> · 기간을 바꿔도 축과 거리 기준은 변하지 않습니다.</p>
+      <p class="chart-purpose"><strong>연간 평균 · 고정축 ±3</strong> · 기간을 바꿔도 축과 거리 기준은 변하지 않습니다. 당해연도는 발표된 최신 월까지의 연중 평균입니다.</p>
       <div class="controls">
         <label class="control-label" for="annual-period-sel">장기 국면 기간</label>
         <select id="annual-period-sel" aria-label="장기 국면 기간"></select>
@@ -595,6 +595,9 @@ function shouldLabelPoint(point,index,points,annual){
   const milestones=innerWidth<=500?["06","12"]:["03","06","09","12"];
   return milestones.includes(month)||point.d===state.selected.d;
 }
+function annualPointLabel(point){
+  return point.d===latest.d.slice(0,4)?point.d+" 연중 평균("+latest.d+"까지)":point.d+"년 연평균";
+}
 function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
   const svg=$(svgId),tooltip=$(tooltipId),annual=options.annual;
   svg.innerHTML="";
@@ -658,7 +661,7 @@ function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
     const isLast=index===points.length-1,isStart=index===0,hex=point.n?NEUTRAL_HEX:RG[point.r].hex;
     const cx=X(point.g),cy=Y(point.l),selected=annual?point.d===state.selected.d.slice(0,4):point.d===state.selected.d;
     const target=annual?point.src:point;
-    const aria=(annual?point.d+"년 연평균":point.d)+", 성장 "+fmt(point.g)+", 유동성 "+fmt(point.l)+", "+(point.n?"중립·전환":RG[point.r].ko);
+    const aria=(annual?annualPointLabel(point):point.d)+", 성장 "+fmt(point.g)+", 유동성 "+fmt(point.l)+", "+(point.n?"중립·전환":RG[point.r].ko);
     const group=el("g",{cursor:"pointer",role:"button",tabindex:"0","aria-label":aria});
     if(isLast){
       group.appendChild(el("circle",{cx,cy,r:radius+9,fill:hex,opacity:.15}));
@@ -684,7 +687,7 @@ function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
     group.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();activate();}});
     group.addEventListener("mousemove",event=>{
       const bounds=$(chartboxId).getBoundingClientRect();
-      tooltip.innerHTML='<div class="tt-d">'+(annual?point.d+" 연평균":point.d)+'</div><div class="tt-r" style="color:'+
+      tooltip.innerHTML='<div class="tt-d">'+(annual?annualPointLabel(point):point.d)+'</div><div class="tt-r" style="color:'+
         (point.n?"#cfc4b0":RG[point.r].hex)+'">'+(point.n?"중립/전환":RG[point.r].ko+" "+RG[point.r].tag)+
         '</div><div class="tt-gl">G '+fmt(point.g)+" · L "+fmt(point.l)+"</div>";
       tooltip.style.opacity=1;
