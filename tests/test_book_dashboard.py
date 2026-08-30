@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -140,7 +141,7 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn("최근 12개월 이동", template)
         self.assertIn("장기 GL 국면 지도", template)
         self.assertIn(
-            "확대 보기 · 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다",
+            "축별 확대 · X/Y 축 범위가 서로 다르며 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다",
             template,
         )
         self.assertIn("연간 평균 · 고정축 ±3", template)
@@ -154,10 +155,37 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn('aria-label="최근 이동 기간"', template)
         self.assertIn('aria-label="장기 국면 기간"', template)
         self.assertIn('role:"button"', template)
-        self.assertIn("function equalUnitRanges(points)", template)
+        self.assertIn("function recentAxisRanges(points)", template)
+        self.assertNotIn("function equalUnitRanges(points)", template)
         self.assertIn("ranges:{gx:[-3,3],ly:[-3,3]}", template)
         self.assertIn("중립·전환 ±0.15", template)
         self.assertIn('"gl-height"', template)
+
+    def test_recent_axis_ranges_expand_growth_and_liquidity_independently(self):
+        template = TEMPLATE.read_text(encoding="utf-8")
+        start = template.index("const MIN_RECENT_SPAN")
+        end = template.index("function placeLabel")
+        helpers = template[start:end]
+        node_program = helpers + """
+const points = [
+  {g:-0.072,l:-0.616}, {g:-0.025,l:-0.310},
+  {g:0.049,l:0.190}, {g:-0.004,l:0.120}
+];
+console.log(JSON.stringify(recentAxisRanges(points)));
+"""
+        result = subprocess.run(
+            ["node", "-e", node_program],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        ranges = json.loads(result.stdout)
+        growth_span = ranges["gx"][1] - ranges["gx"][0]
+        liquidity_span = ranges["ly"][1] - ranges["ly"][0]
+
+        self.assertLessEqual(growth_span, 0.5)
+        self.assertGreaterEqual(liquidity_span, 1.0)
+        self.assertLess(growth_span, liquidity_span)
 
 
 if __name__ == "__main__":

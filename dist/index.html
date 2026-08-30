@@ -295,7 +295,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
   <div>
     <div class="card chart-card" id="recent-movement-card">
       <div class="card-h"><h2 id="recent-heading">최근 12개월 이동</h2><div class="hint">점을 선택하면 우측 패널에서 해당 월을 확인합니다</div></div>
-      <p class="chart-purpose" aria-label="확대 보기 · 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다"><strong>확대 보기</strong> · 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다. 두 축은 같은 z-score 단위 배율을 사용합니다.</p>
+      <p class="chart-purpose" aria-label="축별 확대 · X/Y 축 범위가 서로 다르며 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다"><strong>축별 확대</strong> · X/Y 축 범위가 서로 다르며 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다.</p>
       <div class="controls">
         <label class="control-label" for="recent-period-sel">최근 이동 기간</label>
         <select id="recent-period-sel" aria-label="최근 이동 기간"></select>
@@ -550,23 +550,19 @@ const NS="http://www.w3.org/2000/svg";
 const W=760,H=760,PAD={l:64,r:26,t:22,b:68};
 function el(n,at){const e=document.createElementNS(NS,n);for(const k in at)e.setAttribute(k,at[k]);return e;}
 
-const MIN_SPAN=1.2;
-function niceRange(vals){
+const MIN_RECENT_SPAN=.4;
+function recentAxisRange(vals){
   let lo=Math.min(...vals),hi=Math.max(...vals);
-  const pad=Math.max((hi-lo)*.38,.30);
-  lo-=pad; hi+=pad;
-  if(hi-lo<MIN_SPAN){const c=(lo+hi)/2;lo=c-MIN_SPAN/2;hi=c+MIN_SPAN/2;}
-  lo=Math.min(lo,-.35); hi=Math.max(hi,.35);
+  const spread=Math.max(hi-lo,.05),pad=Math.max(spread*.25,.03);
+  lo=Math.min(lo-pad,-.20); hi=Math.max(hi+pad,.20);
+  if(hi-lo<MIN_RECENT_SPAN){const c=(lo+hi)/2;lo=c-MIN_RECENT_SPAN/2;hi=c+MIN_RECENT_SPAN/2;}
   const step=stepFor(hi-lo);
   return [Math.floor(lo/step)*step,Math.ceil(hi/step)*step];
 }
-function equalUnitRanges(points){
-  const gx=niceRange(points.map(m=>m.g)),ly=niceRange(points.map(m=>m.l));
-  const span=Math.max(gx[1]-gx[0],ly[1]-ly[0]);
-  const expand=range=>{const center=(range[0]+range[1])/2;return[center-span/2,center+span/2];};
-  return {gx:expand(gx),ly:expand(ly)};
+function recentAxisRanges(points){
+  return {gx:recentAxisRange(points.map(m=>m.g)),ly:recentAxisRange(points.map(m=>m.l))};
 }
-function stepFor(span){return span<=1.6?.25:span<=3.2?.5:span<=7?1:2;}
+function stepFor(span){return span<=.8?.1:span<=1.6?.25:span<=3.2?.5:span<=7?1:2;}
 function ticksFor(lo,hi){
   const step=stepFor(hi-lo),ticks=[];
   for(let v=Math.ceil(lo/step-1e-9)*step;v<=hi+1e-9;v+=step)ticks.push(+v.toFixed(2));
@@ -720,8 +716,8 @@ function renderRecent(){
   const preset=RECENT_PRESETS.find(p=>p.id===state.recentPreset),points=preset.get();
   $("recent-heading").textContent=preset.label+" 이동";
   updateMovementSummary(points);
-  renderQuadrant("recent-quad","recent-tooltip","recent-chartbox",points,{annual:false,ranges:equalUnitRanges(points),statusId:"recent-status"});
-  $("recent-status").textContent=preset.label+" · "+points[0].d+" ~ "+points[points.length-1].d+" · "+points.length+"개월 · 확대축";
+  renderQuadrant("recent-quad","recent-tooltip","recent-chartbox",points,{annual:false,ranges:recentAxisRanges(points),statusId:"recent-status"});
+  $("recent-status").textContent=preset.label+" · "+points[0].d+" ~ "+points[points.length-1].d+" · "+points.length+"개월 · 축별 확대";
 }
 function renderAnnual(){
   const preset=ANNUAL_PRESETS.find(p=>p.id===state.annualPreset),points=preset.get();
