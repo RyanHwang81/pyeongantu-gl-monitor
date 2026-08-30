@@ -132,6 +132,33 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn("header{flex-direction:column", template)
         self.assertIn(".hdr-right{width:100%;flex-direction:row", template)
 
+    def test_quant_reference_separates_recent_movement_from_long_term_map(self):
+        template = TEMPLATE.read_text(encoding="utf-8")
+
+        self.assertIn('id="recent-quad"', template)
+        self.assertIn('id="annual-quad"', template)
+        self.assertIn("최근 12개월 이동", template)
+        self.assertIn("장기 GL 국면 지도", template)
+        self.assertIn(
+            "확대 보기 · 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다",
+            template,
+        )
+        self.assertIn("연간 평균 · 고정축 ±3", template)
+        self.assertIn("당해연도는 발표된 최신 월까지의 연중 평균입니다", template)
+        self.assertIn("function annualPointLabel(point)", template)
+        self.assertIn('id="recent-period-sel"', template)
+        self.assertIn('id="annual-period-sel"', template)
+        self.assertNotIn('id="mode-seg"', template)
+        self.assertNotIn('id="fit-btn"', template)
+        self.assertNotIn('id="full-btn"', template)
+        self.assertIn('aria-label="최근 이동 기간"', template)
+        self.assertIn('aria-label="장기 국면 기간"', template)
+        self.assertIn('role:"button"', template)
+        self.assertIn("function equalUnitRanges(points)", template)
+        self.assertIn("ranges:{gx:[-3,3],ly:[-3,3]}", template)
+        self.assertIn("중립·전환 ±0.15", template)
+        self.assertIn('"gl-height"', template)
+
 
 if __name__ == "__main__":
     unittest.main()
