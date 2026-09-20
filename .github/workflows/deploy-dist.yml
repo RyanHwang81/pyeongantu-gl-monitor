@@ -1,0 +1,38 @@
+name: Deploy committed dist
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm public dist has no click-to-open control
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("dist/index.html").read_text(encoding="utf-8")
+          assert "<h2>미국 매크로 정량 보조모델</h2>" in html
+          assert "보조모델 열기" not in html
+          assert "<details>" not in html
+          print("dist/index.html contract OK")
+          PY
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: upload
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
