@@ -192,10 +192,9 @@ select:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
 .cycle-step:not(:last-child)::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);z-index:2;color:var(--brand);font-weight:900}
 .cycle-note{font-size:12px;color:var(--ink3);line-height:1.6;margin-top:12px}
 .quant-reference{margin-top:34px;border-top:2px solid var(--line2);padding-top:18px}
-.quant-reference>details>summary{cursor:pointer;list-style:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:17px 20px;font-weight:900;box-shadow:var(--shadow)}
-.quant-reference>details>summary::-webkit-details-marker{display:none}
-.quant-reference>details>summary span{display:block;font-size:12px;font-weight:500;color:var(--ink3);margin-top:5px}
-.quant-reference>details[open]>summary{border-color:var(--line2)}
+.quant-head{margin:0 0 8px}
+.quant-head h2{font-size:20px;font-weight:900;letter-spacing:-.4px}
+.quant-head p{font-size:13px;color:var(--ink3);line-height:1.65;margin-top:6px}
 footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;color:var(--ink3);line-height:1.8}
 @media(max-width:1080px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.method-grid{grid-template-columns:1fr}}
 @media(max-width:720px){
@@ -274,8 +273,10 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 </main>
 
 <section id="quant-reference" class="quant-reference">
-<details>
-<summary>미국 매크로 정량 보조모델 열기<span>FRED 기반 18년 롤링 z-score 모델입니다. 원고의 일곱 지표 판독과는 계산 기준과 기준월이 다릅니다.</span></summary>
+<div class="quant-head">
+  <h2>미국 매크로 정량 보조모델</h2>
+  <p>FRED 기반 18년 롤링 z-score 모델입니다. 원고의 일곱 지표 판독과는 계산 기준과 기준월이 다릅니다.</p>
+</div>
 
 <div class="kpis">
   <div class="kpi regime-kpi">
@@ -434,7 +435,6 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
   </div>
 </div>
 <!--METHOD_END-->
-</details>
 </section>
 
 <footer>

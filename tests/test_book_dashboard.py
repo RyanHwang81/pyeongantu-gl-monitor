@@ -161,6 +161,15 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn("중립·전환 ±0.15", template)
         self.assertIn('"gl-height"', template)
 
+    def test_quant_reference_is_visible_without_click(self):
+        template = TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn('id="quant-reference"', template)
+        self.assertIn("<h2>미국 매크로 정량 보조모델</h2>", template)
+        self.assertIn('class="quant-head"', template)
+        self.assertNotIn("보조모델 열기", template)
+        self.assertNotIn("<details>", template)
+        self.assertNotIn("<summary>", template)
+
     def test_recent_axis_ranges_expand_growth_and_liquidity_independently(self):
         template = TEMPLATE.read_text(encoding="utf-8")
         start = template.index("const MIN_RECENT_SPAN")
