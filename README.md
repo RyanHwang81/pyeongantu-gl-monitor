@@ -27,7 +27,7 @@ GitHub Actions (매월 1일·16일)
    └─ GitHub Pages 자동 배포
 ```
 
-원고 준거 기록은 `book_dashboard.json`에 확인된 월을 추가할 때 갱신됩니다. FRED 보조모델은 신규 월 데이터가 확정되면 자동으로 점을 추가합니다. 두 층의 기준월은 다를 수 있으며 공개 화면에 각각 표시합니다.
+원고 준거 기록은 `book_dashboard.json`에 확인된 월을 추가할 때 갱신됩니다. FRED 보조모델은 신규 월의 유효 가중치가 G/L 각각 0.4 이상이 되면 점을 추가합니다. 부족할 때는 실제 관측이 있는 계열·관측일·가용 건수를 별도로 표시하고 기존 점을 유지합니다. 두 층의 기준월은 다를 수 있으며 공개 화면에 각각 표시합니다.
 
 > **월 2회 실행 이유** — PERMIT·INDPRO·PAYEMS 등 주요 지표는 해당 월 종료 후 2~3주 뒤 발표됩니다. 1일에만 실행하면 직전 월이 아직 미발표 상태일 수 있어, 16일에 한 번 더 실행해 누락을 방지합니다. 신규 데이터가 없으면 커밋 없이 종료합니다.
 
@@ -36,7 +36,7 @@ GitHub Actions (매월 1일·16일)
 ### 로컬 실행
 
 ```bash
-pip install pandas numpy
+pip install pandas numpy certifi
 python3 build.py --out dist
 ```
 
@@ -44,6 +44,7 @@ python3 build.py --out dist
 
 - `--out DIR` 출력 디렉터리 (기본 `dist`)
 - `--template PATH` 템플릿 경로 (기본 `gl_template.html`)
+- 환경변수 `FRED_API_KEY` 지정 시 FRED 공식 observations API 사용 (Actions에서는 저장소 secret 필수, 키는 로그나 산출물에 넣지 않음)
 - 환경변수 `GL_CACHE=/path` 지정 시 원본 CSV를 해당 폴더에 캐시 (재실행 시 네트워크 부하 감소)
 
 ### GitHub Actions / GitHub Pages 설정
@@ -51,8 +52,7 @@ python3 build.py --out dist
 1. 이 폴더의 파일을 저장소 루트에 커밋 (`build.py`, `gl_template.html`, `README.md`)
 2. `update.yml` 을 `.github/workflows/update.yml` 경로로 저장
 3. 저장소 **Settings → Pages → Source** 를 `GitHub Actions` 로 설정
-4. build job은 `self-hosted, macOS, gl-monitor` runner에서 실행합니다.  
-   FRED graph CSV가 GitHub-hosted runner IP에서 반복 timeout 되어 owner Mac mini runner를 사용합니다. 계산 로직(`build.py`)은 변경하지 않습니다.
+4. build job은 `self-hosted, macOS, gl-monitor` runner에서 실행합니다. FRED graph CSV는 해당 runner에서도 timeout 되었으므로, 저장소 Actions secret `FRED_API_KEY`를 등록해 FRED 공식 API로 수집합니다. 산식은 변경하지 않습니다.
 5. **Actions** 탭에서 `Run workflow` 로 첫 실행 → 이후 매월 1일·16일 09:00 UTC 자동 반복
 
 공개 URL은 `https://ryanhwang81.github.io/pyeongantu-gl-monitor/` 이며 `index.html`(공개용)만 iframe/블로그에 노출합니다.  
@@ -74,7 +74,7 @@ python3 build.py --out dist
 
 **자산 수익률** — S&P500(Shiller 월간), 나스닥(NASDAQCOM), 금(LBMA), WTI, 미국채 10Y(GS10 듀레이션 근사), 현금(TB3MS)
 
-모든 FRED 시계열은 St. Louis Fed 공개 데이터이며 API 키가 필요 없습니다.
+모든 FRED 시계열은 St. Louis Fed 공개 데이터이며, 자동 갱신은 공식 observations API 키를 이용합니다. 공개 화면·JSON에 키를 포함하지 않습니다.
 
 ### 산식 요약
 

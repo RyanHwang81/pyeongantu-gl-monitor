@@ -13,8 +13,12 @@
 매월 자동 실행은 .github/workflows/update.yml (GitHub Actions) 참고.
 """
 import argparse, io, json, os, sys, time
+from datetime import date
 from pathlib import Path
 import urllib.request
+import urllib.parse
+import ssl
+import certifi
 import pandas as pd
 import numpy as np
 
@@ -120,7 +124,26 @@ def fetch(url, tries=4):
             time.sleep(2 * (i + 1))
     raise RuntimeError(f"다운로드 실패: {url} ({last})")
 
+def fred_api(series_id, key):
+    # Never send the key to the generic fetch/logger: its failure message includes the URL.
+    url = "https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(
+        {"series_id": series_id, "api_key": key, "file_type": "json"}
+    )
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=45,
+                                    context=ssl.create_default_context(cafile=certifi.where())) as response:
+            rows = json.load(response)["observations"]
+        frame = pd.DataFrame(rows)[["date", "value"]]
+        frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
+        frame["date"] = pd.to_datetime(frame["date"])
+        return frame.dropna().set_index("date")["value"]
+    except Exception as exc:
+        raise RuntimeError(f"FRED API 수집 실패: {series_id} ({type(exc).__name__})") from None
+
 def fred(series_id):
+    key = os.environ.get("FRED_API_KEY", "")
+    if key and not (CACHE and os.path.exists(os.path.join(CACHE, series_id + ".csv"))):
+        return fred_api(series_id, key)
     if CACHE:
         p = os.path.join(CACHE, series_id + ".csv")
         if os.path.exists(p):
@@ -134,6 +157,54 @@ def fred(series_id):
     d["value"] = pd.to_numeric(d["value"], errors="coerce")
     d["date"] = pd.to_datetime(d["date"])
     return d.dropna().set_index("date")["value"]
+
+def pending_observations(raw, latest_month, today, weights=None):
+    """Report newer, actually observed inputs; do not produce a score from partial coverage."""
+    weights = weights or {
+        "growth": {"PERMIT": .28, "INDPRO": .24, "PAYEMS": .24, "UNRATE": .14, "ICSA": .10},
+        "liquidity": {"M2SL": .22, "T10Y3M": .18, "FEDFUNDS": .18,
+                      "TOTALSL": .14, "BAA10YM": .14, "WALCL": .14},
+    }
+    dates = [d.date() for series in raw.values() for d in series.index
+             if latest_month < d.strftime("%Y-%m") <= today.strftime("%Y-%m") and d.date() <= today]
+    if not dates:
+        return None
+    month = max(dates).strftime("%Y-%m")
+    observed = []
+    coverage = {}
+    for axis, components in weights.items():
+        found = []
+        for series_id, weight in components.items():
+            series = raw.get(series_id, pd.Series(dtype=float))
+            valid_dates = [d for d in series.index if d.strftime("%Y-%m") == month and d.date() <= today]
+            if valid_dates:
+                last = max(valid_dates).strftime("%Y-%m-%d")
+                observed.append({"id": series_id, "as_of": last})
+                found.append(weight)
+        coverage[axis] = {"available": len(found), "total": len(components), "weight": round(sum(found), 2)}
+    return {"month": month, "as_of": max(row["as_of"] for row in observed),
+            "status": "month_in_progress" if month == today.strftime("%Y-%m") else "incomplete",
+            **coverage, "observed": observed}
+
+def recalculation_note(prior, current):
+    if not prior or not prior.get("months") or not current["months"]:
+        return None
+    old, new = prior["months"][-1], current["months"][-1]
+    if old["d"] != new["d"]:
+        return None
+    if all(old[k] == new[k] for k in ("g", "l", "r")):
+        existing = prior.get("meta", {}).get("recalculation")
+        return existing if existing and existing["month"] == new["d"] else None
+    existing = prior.get("meta", {}).get("recalculation")
+    before = existing["before"] if existing and existing["month"] == new["d"] else old
+    new_inputs = [k for axis in ("gz", "lz") for k, value in new[axis].items()
+                  if value is not None and old[axis].get(k) is None]
+    if existing and existing["month"] == new["d"]:
+        new_inputs = list(dict.fromkeys(existing["newly_available"] + new_inputs))
+    return {"month": new["d"],
+            "before": {k: before[k] for k in ("g", "l", "r")},
+            "after": {k: new[k] for k in ("g", "l", "r")},
+            "newly_available": new_inputs}
 
 def to_monthly(s):
     return s.resample("MS").mean()
@@ -167,6 +238,10 @@ def build_data():
     totalsl, baa10y, walcl = fred("TOTALSL"), fred("BAA10YM"), fred("WALCL")
     nasdaq, wti = fred("NASDAQCOM"), fred("WTISPLC")
     gs10, tb3 = fred("GS10"), fred("TB3MS")
+    raw = dict(zip(("PERMIT", "INDPRO", "PAYEMS", "UNRATE", "ICSA", "M2SL",
+                    "T10Y3M", "FEDFUNDS", "TOTALSL", "BAA10YM", "WALCL"),
+                   (permit, indpro, payems, unrate, icsa, m2sl, t10y3m,
+                    fedfunds, totalsl, baa10y, walcl)))
 
     permit, indpro, payems = map(to_monthly, (permit, indpro, payems))
     unrate, icsa = to_monthly(unrate), to_monthly(icsa)
@@ -227,6 +302,10 @@ def build_data():
         "meta": {
             "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d"),
             "latest": df.index[-1].strftime("%Y-%m"),
+            "pending_observations": pending_observations(
+                raw, df.index[-1].strftime("%Y-%m"), date.today(),
+                {"growth": {k: v["w"] for k, v in G_COMP.items()},
+                 "liquidity": {k: v["w"] for k, v in L_COMP.items()}}),
             "window": WINDOW, "min_obs": MIN_OBS,
             "g_weights": {k: v["w"] for k, v in G_COMP.items()},
             "l_weights": {k: v["w"] for k, v in L_COMP.items()},
@@ -262,7 +341,10 @@ def main():
     ap.add_argument("--template", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "gl_template.html"))
     a = ap.parse_args()
     tpl = open(a.template, encoding="utf-8").read()
+    previous_path = Path(a.out) / "gl_data.json"
+    previous = json.loads(previous_path.read_text(encoding="utf-8")) if previous_path.exists() else None
     data = build_data()
+    data["meta"]["recalculation"] = recalculation_note(previous, data)
     book_data = load_book_dashboard()
     os.makedirs(a.out, exist_ok=True)
     for name, pub in [("index.html", True), ("gl-internal.html", False)]:

@@ -195,6 +195,12 @@ select:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
 .quant-head{margin:0 0 8px}
 .quant-head h2{font-size:20px;font-weight:900;letter-spacing:-.4px}
 .quant-head p{font-size:13px;color:var(--ink3);line-height:1.65;margin-top:6px}
+.pending-observations{margin:16px 0 0;padding:16px 20px;border:1px solid #d9c8ab;border-left:4px solid var(--brand);border-radius:12px;background:var(--card);line-height:1.65}
+.pending-observations h3{font-size:16px;line-height:1.45;color:var(--ink)}
+.pending-observations p{font-size:12.5px;color:var(--ink2);margin-top:5px}
+.pending-observations .pending-sources{font-size:11.5px;overflow-wrap:anywhere}
+.pending-observations .pending-recalc{border-top:1px solid var(--line);margin-top:11px;padding-top:9px;color:var(--ink)}
+.pending-observations a{color:var(--brand);text-decoration:underline;text-underline-offset:2px}
 footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;color:var(--ink3);line-height:1.8}
 @media(max-width:1080px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.method-grid{grid-template-columns:1fr}}
 @media(max-width:720px){
@@ -277,6 +283,13 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
   <h2>미국 매크로 정량 보조모델</h2>
   <p>FRED 기반 18년 롤링 z-score 모델입니다. 원고의 일곱 지표 판독과는 계산 기준과 기준월이 다릅니다.</p>
 </div>
+<aside id="pending-observations" class="pending-observations" aria-live="polite" hidden>
+  <h3 id="pending-month">—</h3>
+  <p id="pending-coverage">—</p>
+  <p id="pending-explanation">—</p>
+  <p id="pending-sources" class="pending-sources">—</p>
+  <p id="pending-recalc" class="pending-recalc" hidden></p>
+</aside>
 
 <div class="kpis">
   <div class="kpi regime-kpi">
@@ -496,6 +509,41 @@ const RG = {
 const NEUTRAL_HEX="#cfc4b0";
 const M = DATA.months;
 const latest = M[M.length-1];
+const pending=DATA.meta.pending_observations;
+const monthKo=pending?Number(pending.month.slice(5))+"월":"";
+const monthEn=pending?new Date(pending.month+"-01T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"}):"";
+if(pending){
+  const inProgress=pending.status==="month_in_progress";
+  document.getElementById("pending-observations").hidden=false;
+  document.getElementById("pending-month").textContent=pending.month+(inProgress?" · "+monthKo+" 진행 중 / "+monthEn+" in progress":" · 자료 대기 / Data pending")+" · as of "+pending.as_of;
+  document.getElementById("pending-coverage").textContent=
+    "관측된 구성 지표 / Available inputs: G "+pending.growth.available+"/"+pending.growth.total+
+    " (가중치 / weight "+pending.growth.weight.toFixed(2)+"), L "+pending.liquidity.available+"/"+
+    pending.liquidity.total+" (가중치 / weight "+pending.liquidity.weight.toFixed(2)+").";
+  document.getElementById("pending-explanation").textContent=
+    "새 좌표·레짐 판정은 보류합니다. 4분면의 마지막 계산 좌표는 "+latest.d+"입니다. 미발표 값을 이월하거나 추정하지 않았습니다. "+
+    "No new point or regime judgment: last calculated month is "+latest.d+". Unreleased values are not carried forward or estimated.";
+  const sources=document.getElementById("pending-sources");
+  sources.append(document.createTextNode("실제 월중 관측 / Observed this month: "));
+  pending.observed.forEach((row,i)=>{
+    if(i)sources.append(document.createTextNode(" · "));
+    const link=document.createElement("a");
+    link.href="https://fred.stlouisfed.org/series/"+encodeURIComponent(row.id);
+    link.target="_blank";link.rel="noopener noreferrer";
+    link.textContent=row.id+" ("+row.as_of+")";
+    sources.append(link);
+  });
+}
+const recalc=DATA.meta.recalculation;
+if(pending&&recalc&&recalc.month===latest.d){
+  const node=document.getElementById("pending-recalc");node.hidden=false;
+  const label=r=>RG[r.r]?.ko||r.r;
+  const vals=r=>"G "+r.g.toFixed(3)+" / L "+r.l.toFixed(3)+" ("+label(r)+")";
+  node.textContent=recalc.month+" 좌표 재계산 / Prior point recalculated: "+
+    vals(recalc.before)+" → "+vals(recalc.after)+". "+
+    "새로 발표된 해당 월 지표 / Newly available inputs: "+recalc.newly_available.join(", ")+". "+
+    monthKo+" 좌표는 아직 아닙니다 / This is not a "+monthEn+" point.";
+}
 
 /* 주식이 최고 성과 자산일 때 표시할 당대 주도 산업·대표 종목 (미국 증시 기준) */
 const LEADERS=[
