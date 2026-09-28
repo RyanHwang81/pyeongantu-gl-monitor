@@ -181,17 +181,23 @@ select:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
 .gauge-board{display:grid;grid-template-columns:3fr 4fr;gap:12px}
 .gauge-group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card2)}
 .gauge-group h4{font-size:12px;letter-spacing:.05em;padding:10px 14px;border-bottom:1px solid var(--line)}
+.gauge-group h4{display:flex;justify-content:space-between;gap:8px}.gauge-group h4 span{font-size:11px;letter-spacing:0;color:var(--ink2)}
 .gauge-group.growth{border-top:3px solid var(--exp)}.gauge-group.liquidity{border-top:3px solid var(--liq)}
 .gauge-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
 .gauge-row:first-of-type{border-top:0}
 .gauge-row .title{font-size:13px;font-weight:800;line-height:1.4}
 .gauge-row .reading{font-size:12px;font-weight:800;text-align:right}
 .gauge-row .effect{grid-column:1/-1;font-size:10.5px;color:var(--ink2);line-height:1.4;overflow-wrap:anywhere}
+.gauge-row .effect a{color:var(--brand);text-decoration:underline;text-underline-offset:2px}
 .gauge-row.effect-up .reading{color:var(--exp)}.gauge-row.effect-down .reading{color:var(--def)}
 .gauge-row.effect-flat .reading{color:var(--adj)}
+.gauge-row.provisional{border-left:3px solid var(--adj)}
+.gauge-row.pending{border-left:3px solid var(--line);background:var(--card2)}
+.gauge-row.pending .reading{color:var(--ink2)}
 footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;color:var(--ink3);line-height:1.8}
 @media(max-width:1080px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.method-grid{grid-template-columns:1fr}}
 @media(max-width:720px){
+  .gauge-row{grid-template-columns:minmax(0,1fr)}.gauge-row .reading{text-align:left}
   .wrap{padding:0 14px 56px}.hdr-right{flex-direction:column;align-items:flex-end;gap:5px}.pill{font-size:10.5px;padding:5px 9px}
   header{flex-direction:column;align-items:flex-start;gap:9px}.brand h1{font-size:16px;white-space:nowrap}
   .hdr-right{width:100%;align-items:flex-start}.pill{white-space:nowrap}
@@ -406,16 +412,16 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 
 <section id="book-dashboard" class="book-dashboard">
   <div class="book-panel">
-    <div class="book-panel-head"><h3>일곱 지표 계기판</h3><p>마지막 확인 <b id="book-latest">—</b> · 정량 모델과 별개인 수동 기록</p></div>
+    <div class="book-panel-head"><h3>일곱 지표 계기판</h3><p><b id="book-latest">—</b> 점검 · 관측 <b id="book-count">—</b>/7 · 전체 확인 <b id="book-confirmed">—</b></p></div>
     <div class="gauge-board">
-      <div class="gauge-group growth"><h4>성장 · G / 3</h4><div id="book-growth"></div></div>
-      <div class="gauge-group liquidity"><h4>유동성 · L / 4</h4><div id="book-liquidity"></div></div>
+      <div class="gauge-group growth"><h4>성장 · G / 3 <span id="book-growth-count">—</span></h4><div id="book-growth"></div></div>
+      <div class="gauge-group liquidity"><h4>유동성 · L / 4 <span id="book-liquidity-count">—</span></h4><div id="book-liquidity"></div></div>
     </div>
   </div>
 </section>
 
 <footer>
-  <div><b>평안투 GL 레짐 모니터</b> · 데이터 산출일 <span id="ft-gen">—</span> · 마지막 계산월 <span id="ft-latest">—</span> · 지표 기록 확인월 <span id="ft-book-latest">—</span></div>
+  <div><b>평안투 GL 레짐 모니터</b> · 데이터 산출일 <span id="ft-gen">—</span> · 마지막 계산월 <span id="ft-latest">—</span> · 일곱 지표 점검월 <span id="ft-book-latest">—</span></div>
   <div>정량 모델 자동 갱신 예정: <span id="ft-next">—</span> · 잠정점은 확정 판정이나 매매 신호가 아닙니다.</div>
 </footer>
 </div>
@@ -429,16 +435,27 @@ function renderBookDashboard(){
   const month=BOOK.months[BOOK.months.length-1];
   document.getElementById("book-latest").textContent=month.date;
   document.getElementById("ft-book-latest").textContent=month.date;
+  document.getElementById("book-count").textContent=BOOK.meta.observed_count ?? 7;
+  document.getElementById("book-confirmed").textContent=BOOK.meta.latest_confirmed || "—";
+  for(const axis of ["growth","liquidity"]){
+    const items=Object.values(month.indicators).filter(item=>item.axis===axis);
+    document.getElementById("book-"+axis+"-count").textContent=items.filter(item=>item.state!=="pending").length+"/"+items.length+" 관측";
+  }
   for(const axis of ["growth","liquidity"])document.getElementById("book-"+axis).replaceChildren();
   Object.values(month.indicators).forEach(item=>{
     const card=document.createElement("article");
-    card.className="gauge-row effect-"+item.effect;
+    card.className="gauge-row effect-"+item.effect+" "+item.state;
     const title=document.createElement("div"); title.className="title"; title.textContent=item.label_ko;
     const reading=document.createElement("div"); reading.className="reading";
     reading.textContent=BOOK_ARROWS[item.direction]+" "+item.reading_ko;
     const effect=document.createElement("div"); effect.className="effect";
-    const effectText=item.effect==="up"?"개선":item.effect==="down"?"악화":item.effect==="flat"?"중립":"미발표";
-    effect.textContent=(item.axis==="growth"?"G":"L")+" "+effectText+" · "+item.as_of+" · "+item.source_name;
+    const effectText=item.effect==="up"?"개선":item.effect==="down"?"악화":item.effect==="flat"?"중립":"미확인";
+    const prefix=item.state==="pending"?"마지막 자료 ":"잠정 관측 · ";
+    effect.textContent=(item.axis==="growth"?"G":"L")+" "+effectText+" · "+prefix+item.as_of+" · ";
+    if(item.source_url && item.source_url.startsWith("https://")){
+      const source=document.createElement("a");source.href=item.source_url;source.target="_blank";
+      source.rel="noopener noreferrer";source.textContent=item.source_name;effect.appendChild(source);
+    } else effect.append(item.source_name);
     card.append(title,reading,effect); document.getElementById("book-"+item.axis).appendChild(card);
   });
 }

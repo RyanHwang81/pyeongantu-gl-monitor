@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 import build
 
 
@@ -13,6 +15,63 @@ TEMPLATE = ROOT / "gl_template.html"
 
 
 class BookDashboardContractTests(unittest.TestCase):
+    def test_refresh_creates_current_snapshot_without_reusing_june_arrows(self):
+        authored = build.load_book_dashboard(BOOK_DATA)
+        original = json.dumps(authored, sort_keys=True, ensure_ascii=False)
+        sources = {
+            "DTWEXBGS": pd.Series([120.0, 119.5], index=pd.to_datetime(["2026-08-18", "2026-09-24"])),
+            "BAMLH0A0HYM2": pd.Series([3.2, 3.4], index=pd.to_datetime(["2026-08-18", "2026-09-25"])),
+            "DEXKOUS": pd.Series([1400.0, 1380.0], index=pd.to_datetime(["2026-08-18", "2026-09-25"])),
+        }
+        refreshed = build.refresh_book_dashboard(authored, "2026-09", sources, as_of="2026-09-28")
+        self.assertEqual(original, json.dumps(authored, sort_keys=True, ensure_ascii=False))
+        self.assertEqual(["2026-06", "2026-09"], [m["date"] for m in refreshed["months"]])
+        self.assertEqual("2026-06", refreshed["meta"]["latest_confirmed"])
+        self.assertEqual(3, refreshed["meta"]["observed_count"])
+        self.assertEqual(4, refreshed["meta"]["pending_count"])
+        rows = refreshed["months"][-1]["indicators"]
+        self.assertEqual(("down", "up", "provisional", "2026-09-24"),
+                         tuple(rows["dollar_index_trend"][k] for k in ("direction", "effect", "state", "as_of")))
+        self.assertEqual(("up", "down"), tuple(rows["high_yield_spread"][k] for k in ("direction", "effect")))
+        self.assertEqual(("down", "up"), tuple(rows["usdkrw_position"][k] for k in ("direction", "effect")))
+        for name in ("global_manufacturing_pmi", "korea_semiconductor_exports",
+                     "leading_industry_earnings_revision", "fed_next_move_expectation"):
+            self.assertEqual(("pending", "pending", "pending"),
+                             tuple(rows[name][k] for k in ("direction", "effect", "state")))
+            self.assertEqual("2026-06", rows[name]["as_of"])
+        self.assertEqual("provisional", refreshed["meta"]["latest_judgment"]["status"])
+
+    def test_no_current_observation_stays_pending_and_failed_source_is_disclosed(self):
+        authored = build.load_book_dashboard(BOOK_DATA)
+        sources = {"DTWEXBGS": pd.Series([120.0], index=pd.to_datetime(["2026-08-18"])),
+                   "DEXKOUS": pd.Series([1400.0], index=pd.to_datetime(["2026-09-18"]))}
+        refreshed = build.refresh_book_dashboard(authored, "2026-09", sources,
+                                                as_of="2026-09-28", errors={"BAMLH0A0HYM2": "fetch failed"})
+        self.assertEqual(0, refreshed["meta"]["observed_count"])
+        self.assertEqual(7, refreshed["meta"]["pending_count"])
+        rows = refreshed["months"][-1]["indicators"]
+        self.assertEqual("pending", rows["dollar_index_trend"]["state"])
+        self.assertEqual("pending", rows["usdkrw_position"]["state"])
+        self.assertIn("fetch failed", rows["high_yield_spread"]["reading_en"])
+        self.assertEqual("provisional", refreshed["meta"]["latest_judgment"]["status"])
+
+    def test_newly_authored_current_month_remains_confirmed_and_updates_confirmed_date(self):
+        with tempfile.TemporaryDirectory() as td:
+            authored = json.loads(BOOK_DATA.read_text(encoding="utf-8"))
+            month = json.loads(json.dumps(authored["months"][-1]))
+            month["date"] = "2026-09"
+            for item in month["indicators"].values():
+                item["as_of"] = "2026-09-26"
+            authored["months"].append(month)
+            path = Path(td) / "author.json"
+            path.write_text(json.dumps(authored, ensure_ascii=False), encoding="utf-8")
+            verified = build.load_book_dashboard(path)
+            self.assertEqual("2026-09", verified["meta"]["latest_confirmed"])
+            refreshed = build.refresh_book_dashboard(verified, "2026-09", {}, as_of="2026-09-28")
+            self.assertEqual(7, refreshed["meta"]["observed_count"])
+            self.assertEqual("confirmed", refreshed["meta"]["latest_judgment"]["status"])
+            self.assertEqual("2026-09-26", refreshed["months"][-1]["indicators"]["high_yield_spread"]["as_of"])
+
     def test_checked_in_seed_has_exactly_seven_chapter_27_indicators(self):
         dashboard = build.load_book_dashboard(BOOK_DATA)
         latest = dashboard["months"][-1]
@@ -117,7 +176,10 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertNotIn("이번 달 세 줄 기록", visible)
         self.assertNotIn("부록 3 · 역사적 대표 이동 경로", visible)
         self.assertNotIn("id=\"book-regime-name\"", visible)
-        self.assertIn("마지막 확인", visible)
+        self.assertIn("전체 확인", visible)
+        self.assertIn('id="book-count"', visible)
+        self.assertIn('id="book-growth-count"', visible)
+        self.assertIn('id="book-confirmed"', visible)
         self.assertIn("글로벌 제조업 PMI", html)
         self.assertIn("한국 반도체 수출", html)
         self.assertIn("주도 산업 이익 전망치", html)

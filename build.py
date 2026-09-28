@@ -12,7 +12,7 @@
 
 매월 자동 실행은 .github/workflows/update.yml (GitHub Actions) 참고.
 """
-import argparse, io, json, os, sys, time
+import argparse, copy, io, json, os, sys, time
 from datetime import date
 from pathlib import Path
 import urllib.request
@@ -40,6 +40,11 @@ BOOK_INDICATORS = {
 }
 BOOK_DIRECTIONS = {"up", "down", "flat", "pending"}
 BOOK_STATES = {"confirmed", "provisional", "pending"}
+BOOK_AUTO_SERIES = {
+    "DTWEXBGS": "dollar_index_trend",
+    "BAMLH0A0HYM2": "high_yield_spread",
+    "DEXKOUS": "usdkrw_position",
+}
 BOOK_REGIMES = {
     ("up", "up"): "expansion",
     ("up", "down"): "selection",
@@ -72,7 +77,8 @@ def judge_book_month(month, previous_regime=None):
     unresolved = complete_count < len(BOOK_INDICATORS) or candidate is None
     held_previous = bool(unresolved and previous_regime)
     regime = previous_regime if held_previous else candidate
-    status = "confirmed" if complete_count == len(BOOK_INDICATORS) and candidate else "provisional"
+    status = "confirmed" if (complete_count == len(BOOK_INDICATORS) and candidate and
+                              all(item["state"] == "confirmed" for item in indicators.values())) else "provisional"
     return {
         "growth": growth,
         "liquidity": liquidity,
@@ -109,8 +115,63 @@ def load_book_dashboard(path=BOOK_DATA):
         month["judgment"] = judge_book_month(month, previous)
         if month["judgment"]["regime"] != "undetermined":
             previous = month["judgment"]["regime"]
+        if month["status"] == "confirmed" and month["judgment"]["status"] == "confirmed":
+            data["meta"]["latest_confirmed"] = month["date"]
     data["meta"]["latest_judgment"] = months[-1]["judgment"]
     return data
+
+def refresh_book_dashboard(authored, target_month, sources, as_of=None, errors=None):
+    """Derive a dated, sourced gauge snapshot without changing author-confirmed history."""
+    as_of = as_of or date.today().isoformat()
+    errors = errors or {}
+    book = copy.deepcopy(authored)
+    latest = book["months"][-1]
+    if latest["date"] > target_month:
+        raise ValueError("author month is newer than refresh month")
+    if latest["date"] != target_month:
+        rows = copy.deepcopy(latest["indicators"])
+        for item in rows.values():
+            item["direction"] = item["effect"] = item["state"] = "pending"
+            item["reading_ko"] = "미확인 · 마지막 기록 " + item["as_of"]
+            item["reading_en"] = "Unverified · last record " + item["as_of"]
+        latest = {"date": target_month, "status": "provisional",
+                  "source_basis_ko": "확인된 원자료만 반영 · 미확인 칸은 이전 판단을 이월하지 않음",
+                  "source_basis_en": "Verified observations only; prior arrows are not carried forward",
+                  "indicators": rows}
+        book["months"].append(latest)
+    first = pd.Timestamp(target_month + "-01")
+    prev = first - pd.offsets.MonthBegin(1)
+    cutoff = pd.Timestamp(as_of)
+    for series_id, name in BOOK_AUTO_SERIES.items():
+        item = latest["indicators"][name]
+        if item["state"] == "confirmed" and item["as_of"].startswith(target_month):
+            continue  # preserve an explicitly verified authored judgment
+        item["direction"] = item["effect"] = item["state"] = "pending"
+        item["source_name"] = "FRED " + series_id
+        item["source_url"] = "https://fred.stlouisfed.org/series/" + series_id
+        series = sources.get(series_id, pd.Series(dtype=float, index=pd.DatetimeIndex([]))).loc[:cutoff].dropna().sort_index()
+        previous = series[(series.index >= prev) & (series.index < first)]
+        current = series[(series.index >= first) & (series.index <= cutoff)]
+        if previous.empty or current.empty:
+            last = series.index[-1].strftime("%Y-%m-%d") if not series.empty else "없음"
+            reason = errors.get(series_id, "no observations in both comparison months")
+            item["as_of"] = last
+            item["reading_ko"] = "미확인 · " + last + " · " + reason
+            item["reading_en"] = "Unverified · " + last + " · " + reason
+            continue
+        before, after = float(previous.mean()), float(current.mean())
+        direction = "up" if after > before else "down" if after < before else "flat"
+        item.update(direction=direction, effect={"up": "down", "down": "up", "flat": "flat"}[direction],
+                    state="provisional", as_of=current.index[-1].strftime("%Y-%m-%d"),
+                    reading_ko=f"당월 평균 {after:.2f} / 전월 {before:.2f} · 잠정",
+                    reading_en=f"MTD mean {after:.2f} / prior {before:.2f} · provisional")
+    previous_regime = book["months"][-2]["judgment"]["regime"] if len(book["months"]) > 1 else None
+    latest["judgment"] = judge_book_month(latest, previous_regime)
+    observed = sum(row["state"] != "pending" and row["as_of"].startswith(target_month)
+                   for row in latest["indicators"].values())
+    book["meta"].update(refresh_as_of=as_of, observed_count=observed,
+                        pending_count=len(BOOK_INDICATORS)-observed, latest_judgment=latest["judgment"])
+    return book
 
 def fetch(url, tries=4):
     last = None
@@ -397,7 +458,19 @@ def main():
     previous = json.loads(previous_path.read_text(encoding="utf-8")) if previous_path.exists() else None
     data = build_data()
     data["meta"]["recalculation"] = recalculation_note(previous, data)
-    book_data = load_book_dashboard()
+    book_sources, book_errors = {}, {}
+    for series_id in BOOK_AUTO_SERIES:
+        try:
+            book_sources[series_id] = fred(series_id)
+        except Exception as exc:
+            # Never publish the original exception: some clients include secrets in URLs.
+            book_errors[series_id] = type(exc).__name__
+    book_data = refresh_book_dashboard(load_book_dashboard(), date.today().strftime("%Y-%m"),
+                                       book_sources, errors=book_errors)
+    print("[book]", book_data["months"][-1]["date"],
+          f"observed={book_data['meta']['observed_count']}/7",
+          f"pending={book_data['meta']['pending_count']}",
+          "source_errors=" + ",".join(book_errors))
     os.makedirs(a.out, exist_ok=True)
     for name, pub in [("index.html", True), ("gl-internal.html", False)]:
         p = os.path.join(a.out, name)
