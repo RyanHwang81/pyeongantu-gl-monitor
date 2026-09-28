@@ -5,11 +5,41 @@ from datetime import date
 from unittest.mock import patch
 
 import pandas as pd
+import numpy as np
 
 import build
 
 
 class SeptemberStatusTests(unittest.TestCase):
+    def test_provisional_point_carries_last_transformed_signal_not_raw_level(self):
+        index = pd.date_range("2005-01-01", "2026-08-01", freq="MS")
+        wave = pd.Series([np.sin(i / 7) + i / 1000 for i in range(len(index))], index=index)
+        observed = pd.concat([wave, pd.Series([1.7], index=pd.to_datetime(["2026-09-01"]))])
+        axes = {
+            "growth": {"OBS": {"t": observed, "w": .4}, "OLD": {"t": wave, "w": .6}},
+            "liquidity": {"OBS": {"t": observed, "w": .4}, "OLD": {"t": wave, "w": .6}},
+        }
+        raw = {"OBS": pd.Series([3], index=pd.to_datetime(["2026-09-19"])),
+               "OLD": pd.Series([4], index=pd.to_datetime(["2026-08-01"]))}
+        pending = {"month": "2026-09", "as_of": "2026-09-19"}
+        point = build.provisional_point(axes, raw, pending)
+        self.assertEqual("2026-09", point["month"])
+        self.assertEqual("2026-09-19", point["as_of"])
+        self.assertEqual(.6, point["coverage"]["growth"]["carried_weight"])
+        self.assertEqual(1, point["coverage"]["growth"]["observed"])
+        self.assertEqual("2026-08", point["inputs"]["growth"]["OLD"]["used_month"])
+        self.assertTrue(np.isfinite(point["g"]))
+        self.assertTrue(np.isfinite(point["l"]))
+        self.assertEqual("provisional_carry_forward", point["status"])
+
+    def test_provisional_point_refuses_stale_or_missing_history(self):
+        index = pd.date_range("2005-01-01", "2026-08-01", freq="MS")
+        wave = pd.Series([np.sin(i / 7) for i in range(len(index))], index=index)
+        axes = {"growth": {"OLD": {"t": wave, "w": 1}},
+                "liquidity": {"MISSING": {"t": pd.Series(dtype=float), "w": 1}}}
+        raw = {"OLD": pd.Series([4], index=pd.to_datetime(["2026-08-01"]))}
+        self.assertIsNone(build.provisional_point(axes, raw, {"month": "2026-09", "as_of": "2026-09-19"}))
+
     def test_recalculated_prior_month_discloses_changed_point_and_new_inputs(self):
         prior = {"months": [{"d": "2026-08", "g": -.016, "l": .275, "r": "liquidity",
                              "gz": {"PERMIT": None, "INDPRO": None}, "lz": {"M2SL": None}}], "meta": {}}
@@ -79,6 +109,16 @@ class SeptemberStatusTests(unittest.TestCase):
         self.assertIn('id="pending-month"', html)
         self.assertEqual("2026-08", data["months"][-1]["d"])
         self.assertNotIn('"d": "2026-09"', html)
+
+    def test_provisional_dot_is_distinct_and_not_in_histories(self):
+        template = build.Path(__file__).resolve().parents[1].joinpath("gl_template.html").read_text()
+        self.assertIn("DATA.meta.provisional_point", template)
+        self.assertIn('class="provisional-pair"', template)
+        self.assertIn('id="provisional-summary"', template)
+        self.assertIn('id="recent-quad"', template)
+        self.assertIn('class:"provisional-dot"', template)
+        self.assertIn('const M = DATA.months;', template)
+        self.assertIn('const ANN = annualize(M);', template)
 
 
 if __name__ == "__main__":

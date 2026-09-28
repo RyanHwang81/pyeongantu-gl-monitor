@@ -95,7 +95,7 @@ class BookDashboardContractTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid effect"):
                 build.load_book_dashboard(path)
 
-    def test_public_render_puts_book_dashboard_first_and_labels_legacy_model(self):
+    def test_public_render_leads_with_quant_and_keeps_seven_dated_gauges(self):
         dashboard = build.load_book_dashboard(BOOK_DATA)
         legacy = {
             "meta": {
@@ -112,7 +112,12 @@ class BookDashboardContractTests(unittest.TestCase):
         html = build.render(TEMPLATE.read_text(encoding="utf-8"), legacy, dashboard, public=True)
 
         self.assertIn('id="book-dashboard"', html)
-        self.assertIn("원고 준거 월간 판독", html)
+        visible = html.split("<script>", 1)[0]
+        self.assertNotIn("원고 준거 월간 판독", visible)
+        self.assertNotIn("이번 달 세 줄 기록", visible)
+        self.assertNotIn("부록 3 · 역사적 대표 이동 경로", visible)
+        self.assertNotIn("id=\"book-regime-name\"", visible)
+        self.assertIn("마지막 확인", visible)
         self.assertIn("글로벌 제조업 PMI", html)
         self.assertIn("한국 반도체 수출", html)
         self.assertIn("주도 산업 이익 전망치", html)
@@ -121,8 +126,7 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn("하이일드 스프레드", html)
         self.assertIn("원달러 환율 위치", html)
         self.assertIn("미국 매크로 정량 보조모델", html)
-        self.assertIn("다음 국면을 예측하는 규칙이 아닙니다", html)
-        self.assertLess(html.index('id="book-dashboard"'), html.index('id="quant-reference"'))
+        self.assertLess(html.index('id="quant-reference"'), html.index('id="book-dashboard"'))
         self.assertNotIn("gl-internal", html)
         self.assertNotIn("__BOOK_DATA__", html)
         self.assertNotIn("__GL_DATA__", html)
@@ -167,8 +171,8 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn("<h2>미국 매크로 정량 보조모델</h2>", template)
         self.assertIn('class="quant-head"', template)
         self.assertNotIn("보조모델 열기", template)
-        self.assertNotIn("<details>", template)
-        self.assertNotIn("<summary>", template)
+        self.assertIn('<aside id="pending-observations"', template)
+        self.assertIn('id="provisional-card"', template)
 
     def test_recent_axis_ranges_expand_growth_and_liquidity_independently(self):
         template = TEMPLATE.read_text(encoding="utf-8")

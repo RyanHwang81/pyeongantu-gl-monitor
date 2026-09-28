@@ -156,41 +156,11 @@ select:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
 .impr b{color:var(--ink)}
 .sec-title{font-size:17px;font-weight:900;letter-spacing:-.4px;margin-top:34px}
 .sec-sub{font-size:13px;color:var(--ink3);margin-top:4px}
-.book-dashboard{margin:26px 0 34px}
-.book-hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:16px;margin-bottom:16px}
-.book-intro,.book-regime,.book-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
-.book-intro{padding:24px 26px;border-top:4px solid var(--brand)}
-.book-kicker{font:700 11px/1.4 var(--mono);letter-spacing:.12em;color:var(--brand);text-transform:uppercase}
-.book-intro h2{font-size:clamp(24px,3vw,36px);line-height:1.18;letter-spacing:-.04em;margin:9px 0 10px}
-.book-intro p{font-size:14px;line-height:1.75;color:var(--ink2)}
-.book-regime{padding:22px 24px;background:linear-gradient(145deg,#fffdf9,#f5f0e8)}
-.book-regime .label{font:700 11px/1.4 var(--mono);letter-spacing:.08em;color:var(--ink3)}
-.book-regime .name{font-size:28px;font-weight:900;margin:9px 0 5px}
-.book-regime .axes{font:700 14px/1.5 var(--mono);color:var(--brand)}
-.book-regime .status{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:6px;background:#efe7da;color:var(--ink2);font-size:11px;font-weight:700}
-.book-panel{padding:22px 24px;margin-top:16px}
+.book-dashboard{margin:18px 0 34px}
+.book-panel{padding:22px 24px;margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
 .book-panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:14px}
 .book-panel-head h3{font-size:18px;letter-spacing:-.03em}
 .book-panel-head p{font-size:12px;color:var(--ink3);text-align:right}
-.indicator-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.indicator-card{border:1px solid var(--line);border-radius:12px;padding:14px 15px;background:var(--card2)}
-.indicator-card .axis{font:700 10.5px/1.4 var(--mono);letter-spacing:.08em;color:var(--ink3)}
-.indicator-card .title{font-size:14px;font-weight:800;margin:5px 0 4px}
-.indicator-card .reading{font-size:12px;color:var(--ink2);line-height:1.55}
-.indicator-card .arrow{float:right;font:800 21px/1 var(--mono)}
-.indicator-card .effect{font-size:10.5px;color:var(--ink3);margin-top:6px}
-.indicator-card.effect-up .arrow{color:var(--exp)}
-.indicator-card.effect-down .arrow{color:var(--def)}
-.indicator-card.effect-flat .arrow{color:var(--adj)}
-.indicator-card.effect-pending .arrow{color:var(--ink3)}
-.book-record{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.record-card{border-left:3px solid var(--brand);background:var(--card2);padding:14px 16px}
-.record-card b{display:block;font:700 10.5px/1.4 var(--mono);letter-spacing:.08em;color:var(--brand);margin-bottom:5px}
-.record-card p{font-size:13px;line-height:1.65;color:var(--ink2)}
-.cycle-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:stretch}
-.cycle-step{position:relative;border:1px solid var(--line);border-radius:10px;padding:13px 10px;text-align:center;background:var(--card2);font-size:12px;font-weight:800}
-.cycle-step:not(:last-child)::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);z-index:2;color:var(--brand);font-weight:900}
-.cycle-note{font-size:12px;color:var(--ink3);line-height:1.6;margin-top:12px}
 .quant-reference{margin-top:34px;border-top:2px solid var(--line2);padding-top:18px}
 .quant-head{margin:0 0 8px}
 .quant-head h2{font-size:20px;font-weight:900;letter-spacing:-.4px}
@@ -201,12 +171,32 @@ select:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
 .pending-observations .pending-sources{font-size:11.5px;overflow-wrap:anywhere}
 .pending-observations .pending-recalc{border-top:1px solid var(--line);margin-top:11px;padding-top:9px;color:var(--ink)}
 .pending-observations a{color:var(--brand);text-decoration:underline;text-underline-offset:2px}
+.provisional-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0 0}
+.point-card{background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:14px 18px;min-width:0}
+.point-card.provisional{border-style:dashed;border-color:var(--brand);background:#f6eee2}
+.point-card .point-title{font-size:12px;font-weight:800;color:var(--ink2)}
+.point-card .point-value{font:700 18px/1.5 var(--mono);color:var(--ink);margin-top:3px}
+.point-card .point-note{font-size:11px;color:var(--ink2);line-height:1.55}
+.provisional-dot{stroke:#7a4a2b;fill:#fffdf9;stroke-width:3}
+.gauge-board{display:grid;grid-template-columns:3fr 4fr;gap:12px}
+.gauge-group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card2)}
+.gauge-group h4{font-size:12px;letter-spacing:.05em;padding:10px 14px;border-bottom:1px solid var(--line)}
+.gauge-group.growth{border-top:3px solid var(--exp)}.gauge-group.liquidity{border-top:3px solid var(--liq)}
+.gauge-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+.gauge-row:first-of-type{border-top:0}
+.gauge-row .title{font-size:13px;font-weight:800;line-height:1.4}
+.gauge-row .reading{font-size:12px;font-weight:800;text-align:right}
+.gauge-row .effect{grid-column:1/-1;font-size:10.5px;color:var(--ink2);line-height:1.4;overflow-wrap:anywhere}
+.gauge-row.effect-up .reading{color:var(--exp)}.gauge-row.effect-down .reading{color:var(--def)}
+.gauge-row.effect-flat .reading{color:var(--adj)}
 footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;color:var(--ink3);line-height:1.8}
 @media(max-width:1080px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.method-grid{grid-template-columns:1fr}}
 @media(max-width:720px){
   .wrap{padding:0 14px 56px}.hdr-right{flex-direction:column;align-items:flex-end;gap:5px}.pill{font-size:10.5px;padding:5px 9px}
-  .book-hero,.indicator-grid,.book-record{grid-template-columns:1fr}.cycle-row{grid-template-columns:1fr 1fr}
-  .cycle-step::after{display:none}.book-panel,.book-intro,.book-regime{padding:18px}.book-panel-head{align-items:flex-start;flex-direction:column}.book-panel-head p{text-align:left}
+  header{flex-direction:column;align-items:flex-start;gap:9px}.brand h1{font-size:16px;white-space:nowrap}
+  .hdr-right{width:100%;align-items:flex-start}.pill{white-space:nowrap}
+  .gauge-board,.provisional-pair{grid-template-columns:1fr}
+  .book-panel{padding:18px}.book-panel-head{align-items:flex-start;flex-direction:column}.book-panel-head p{text-align:left}
   .chart-card .card-h{align-items:flex-start;flex-direction:column;gap:5px}.movement-summary{grid-template-columns:1fr}
   .statusbar{align-items:flex-start;flex-direction:column;gap:5px}
   .pt-label{font-size:18px;stroke-width:4px}.tick-lab{font-size:15px}.axis-lab{font-size:17px}
@@ -229,73 +219,37 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
     <div class="logo">平</div>
     <div>
       <h1>평안투 <span style="color:var(--brand);font-weight:900">GL 레짐 모니터</span></h1>
-      <div class="sub">Chapter 27 Monthly Judgment · U.S. Macro Reference</div>
+      <div class="sub">성장 × 유동성 · FRED 정량 모델</div>
     </div>
   </div>
   <div class="hdr-right">
-    <span class="pill">판독 기록 <b id="book-latest">—</b></span>
-    <span class="pill">정량 보조모델 <b id="hdr-latest">—</b></span>
+    <span class="pill">마지막 계산월 <b id="hdr-latest">—</b></span>
   </div>
 </header>
-
-<main id="book-dashboard" class="book-dashboard">
-  <div class="book-hero">
-    <section class="book-intro">
-      <div class="book-kicker">Chapter 27 · Primary dashboard</div>
-      <h2>원고 준거 월간 판독</h2>
-      <p>성장 3개와 유동성 4개, 모두 일곱 지표의 <b>방향</b>을 한 달에 한 번 확인합니다. 지표가 엇갈리거나 아직 발표되지 않았다면 새 방을 서둘러 선언하지 않고 이전 판정을 유지합니다.</p>
-    </section>
-    <section class="book-regime" aria-live="polite">
-      <div class="label">LATEST CONFIRMED JUDGMENT</div>
-      <div class="name" id="book-regime-name">—</div>
-      <div class="axes" id="book-regime-axes">—</div>
-      <div class="status" id="book-regime-status">—</div>
-    </section>
-  </div>
-
-  <section class="book-panel">
-    <div class="book-panel-head"><h3>일곱 개의 계기판</h3><p>화살표는 지표 자체의 움직임, 아래 문장은 G/L에 미치는 방향입니다.</p></div>
-    <div class="indicator-grid" id="book-indicators"></div>
-  </section>
-
-  <section class="book-panel">
-    <div class="book-panel-head"><h3>이번 달 세 줄 기록</h3><p id="book-record-date">—</p></div>
-    <div class="book-record">
-      <div class="record-card"><b>EVENT · 가장 큰 이벤트</b><p id="book-event">—</p></div>
-      <div class="record-card"><b>ACTION · 행동 또는 하지 않은 결정</b><p id="book-action">—</p></div>
-    </div>
-  </section>
-
-  <section class="book-panel">
-    <div class="book-panel-head"><h3>부록 3 · 역사적 대표 이동 경로</h3><p>위치 확인용 참고 지도</p></div>
-    <div class="cycle-row">
-      <div class="cycle-step">겨울<br><small>G↓ L↓</small></div>
-      <div class="cycle-step">유동성 장세<br><small>G↓ L↑</small></div>
-      <div class="cycle-step">확장<br><small>G↑ L↑</small></div>
-      <div class="cycle-step">선별<br><small>G↑ L↓</small></div>
-    </div>
-    <p class="cycle-note" id="cycle-note">과거에 자주 관찰된 대표 이동 경로입니다. 다음 국면을 예측하는 규칙이 아닙니다.</p>
-  </section>
-</main>
 
 <section id="quant-reference" class="quant-reference">
 <div class="quant-head">
   <h2>미국 매크로 정량 보조모델</h2>
-  <p>FRED 기반 18년 롤링 z-score 모델입니다. 원고의 일곱 지표 판독과는 계산 기준과 기준월이 다릅니다.</p>
+  <p>마지막 계산월의 발표분 반영점과 이번 달 월중 잠정점을 구분합니다. 과거 말일 당시의 데이터 재현은 아닙니다.</p>
+</div>
+<div class="provisional-pair">
+  <div class="point-card"><div class="point-title" id="last-month-label">마지막 계산월</div><div class="point-value" id="last-month-values">—</div><div class="point-note">현재까지 발표된 해당 월 지표 반영 · 당시 시점 재현 아님</div></div>
+  <div class="point-card provisional" id="provisional-card" hidden><div class="point-title" id="provisional-title">월중 잠정 추정점 / Provisional</div><div class="point-value" id="provisional-values">—</div><div class="point-note" id="provisional-summary">—</div></div>
 </div>
 <aside id="pending-observations" class="pending-observations" aria-live="polite" hidden>
   <h3 id="pending-month">—</h3>
-  <p id="pending-coverage">—</p>
   <p id="pending-explanation">—</p>
-  <p id="pending-sources" class="pending-sources">—</p>
-  <p id="pending-recalc" class="pending-recalc" hidden></p>
+  <details><summary>관측·이월 지표와 재계산 내역 / Inputs &amp; revisions</summary>
+    <p id="pending-coverage">—</p><p id="pending-sources" class="pending-sources">—</p>
+    <p id="pending-recalc" class="pending-recalc" hidden></p>
+  </details>
 </aside>
 
 <div class="kpis">
   <div class="kpi regime-kpi">
     <div class="regime-dot" id="kpi-regime-dot"></div>
     <div>
-      <div class="k">현재 레짐</div>
+      <div class="k">마지막 계산월 레짐</div>
       <div class="v" id="kpi-regime">—<span class="badge" id="kpi-conf"></span></div>
       <div class="d" id="kpi-regime-desc">—</div>
     </div>
@@ -308,7 +262,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 <div class="grid">
   <div>
     <div class="card chart-card" id="recent-movement-card">
-      <div class="card-h"><h2 id="recent-heading">최근 12개월 이동</h2><div class="hint">점을 선택하면 우측 패널에서 해당 월을 확인합니다</div></div>
+      <div class="card-h"><h2 id="recent-heading">최근 12개월 이동</h2><div class="hint">월간 계산 점 선택 · 속 빈 점은 별도 잠정 추정</div></div>
       <p class="chart-purpose" aria-label="축별 확대 · X/Y 축 범위가 서로 다르며 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다"><strong>축별 확대</strong> · X/Y 축 범위가 서로 다르며 장기 국면 지도와 이동 거리를 직접 비교하지 않습니다.</p>
       <div class="controls">
         <label class="control-label" for="recent-period-sel">최근 이동 기간</label>
@@ -450,52 +404,42 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 <!--METHOD_END-->
 </section>
 
+<section id="book-dashboard" class="book-dashboard">
+  <div class="book-panel">
+    <div class="book-panel-head"><h3>일곱 지표 계기판</h3><p>마지막 확인 <b id="book-latest">—</b> · 정량 모델과 별개인 수동 기록</p></div>
+    <div class="gauge-board">
+      <div class="gauge-group growth"><h4>성장 · G / 3</h4><div id="book-growth"></div></div>
+      <div class="gauge-group liquidity"><h4>유동성 · L / 4</h4><div id="book-liquidity"></div></div>
+    </div>
+  </div>
+</section>
+
 <footer>
-  <div><b>평안투 GL 레짐 모니터</b> · 원고 준거 판독 기준월: <span id="ft-book-latest">—</span> · 미국 정량 보조모델 산출일: <span id="ft-gen">—</span> · 보조모델 기준월: <span id="ft-latest">—</span></div>
-  <div>원고 준거 판독은 월간 확인 기록이 추가될 때 갱신됩니다. 미국 정량 보조모델의 다음 자동 갱신 예정: <span id="ft-next">—</span></div>
-  <div>두 층은 목적과 산식이 다릅니다. 원고 준거 판독은 행동 규율을 위한 주 화면이고, FRED 모델은 미국 매크로의 장기 상대 위치를 보는 참고 화면입니다.</div>
+  <div><b>평안투 GL 레짐 모니터</b> · 데이터 산출일 <span id="ft-gen">—</span> · 마지막 계산월 <span id="ft-latest">—</span> · 지표 기록 확인월 <span id="ft-book-latest">—</span></div>
+  <div>정량 모델 자동 갱신 예정: <span id="ft-next">—</span> · 잠정점은 확정 판정이나 매매 신호가 아닙니다.</div>
 </footer>
 </div>
 
 <script>
 const BOOK = __BOOK_DATA__;
 const DATA = __GL_DATA__;
-const BOOK_REGIMES = {
-  expansion:{ko:"확장",tag:"G↑ L↑"},
-  selection:{ko:"선별",tag:"G↑ L↓"},
-  liquidity:{ko:"유동성 장세",tag:"G↓ L↑"},
-  winter:{ko:"겨울",tag:"G↓ L↓"},
-  undetermined:{ko:"판정 보류",tag:"—"}
-};
 const BOOK_ARROWS={up:"↑",down:"↓",flat:"→",pending:"·"};
 
 function renderBookDashboard(){
-  const month=BOOK.months[BOOK.months.length-1], judgment=month.judgment;
-  const regime=BOOK_REGIMES[judgment.regime]||BOOK_REGIMES.undetermined;
+  const month=BOOK.months[BOOK.months.length-1];
   document.getElementById("book-latest").textContent=month.date;
   document.getElementById("ft-book-latest").textContent=month.date;
-  document.getElementById("book-regime-name").textContent=regime.ko;
-  document.getElementById("book-regime-axes").textContent=regime.tag;
-  document.getElementById("book-regime-status").textContent=
-    (judgment.status==="confirmed"?"확정 기록":"잠정 · 이전 방 유지")+" · "+judgment.complete_count+"/"+judgment.total_count+" 지표 확인";
-  document.getElementById("book-record-date").textContent=month.date+" · "+month.source_basis_ko;
-  document.getElementById("book-event").textContent=month.event_ko;
-  document.getElementById("book-action").textContent=month.action_ko;
-  document.getElementById("cycle-note").textContent=BOOK.historical_cycle.notice_ko;
-
-  const box=document.getElementById("book-indicators"); box.innerHTML="";
+  for(const axis of ["growth","liquidity"])document.getElementById("book-"+axis).replaceChildren();
   Object.values(month.indicators).forEach(item=>{
     const card=document.createElement("article");
-    card.className="indicator-card effect-"+item.effect;
-    const arrow=document.createElement("span"); arrow.className="arrow"; arrow.textContent=BOOK_ARROWS[item.direction];
-    const axis=document.createElement("div"); axis.className="axis"; axis.textContent=item.axis==="growth"?"GROWTH":"LIQUIDITY";
-    axis.appendChild(arrow);
+    card.className="gauge-row effect-"+item.effect;
     const title=document.createElement("div"); title.className="title"; title.textContent=item.label_ko;
-    const reading=document.createElement("div"); reading.className="reading"; reading.textContent=item.reading_ko;
+    const reading=document.createElement("div"); reading.className="reading";
+    reading.textContent=BOOK_ARROWS[item.direction]+" "+item.reading_ko;
     const effect=document.createElement("div"); effect.className="effect";
     const effectText=item.effect==="up"?"개선":item.effect==="down"?"악화":item.effect==="flat"?"중립":"미발표";
-    effect.textContent=(item.axis==="growth"?"G":"L")+" 영향: "+effectText+" · "+item.as_of+" · "+item.source_name;
-    card.append(axis,title,reading,effect); box.appendChild(card);
+    effect.textContent=(item.axis==="growth"?"G":"L")+" "+effectText+" · "+item.as_of+" · "+item.source_name;
+    card.append(title,reading,effect); document.getElementById("book-"+item.axis).appendChild(card);
   });
 }
 renderBookDashboard();
@@ -510,19 +454,31 @@ const NEUTRAL_HEX="#cfc4b0";
 const M = DATA.months;
 const latest = M[M.length-1];
 const pending=DATA.meta.pending_observations;
+const provisional=DATA.meta.provisional_point;
 const monthKo=pending?Number(pending.month.slice(5))+"월":"";
 const monthEn=pending?new Date(pending.month+"-01T00:00:00Z").toLocaleString("en-US",{month:"long",timeZone:"UTC"}):"";
+document.getElementById("last-month-label").textContent=latest.d+" · 계산 / Calculated";
+document.getElementById("last-month-values").textContent="G "+latest.g.toFixed(3)+" · L "+latest.l.toFixed(3);
+if(provisional){
+  document.getElementById("provisional-card").hidden=false;
+  document.getElementById("provisional-title").textContent=provisional.month+" · 잠정 / Provisional";
+  document.getElementById("provisional-values").textContent="G "+provisional.g.toFixed(3)+" · L "+provisional.l.toFixed(3);
+  const g=provisional.coverage.growth,l=provisional.coverage.liquidity;
+  document.getElementById("provisional-summary").textContent=
+    "as of "+provisional.as_of+" · 실측 G "+g.observed+"/"+g.total+" · L "+l.observed+"/"+l.total+
+    " · 이월/Carried G\u00a0"+Math.round(g.carried_weight*100)+"% · L\u00a0"+Math.round(l.carried_weight*100)+"%";
+}
 if(pending){
   const inProgress=pending.status==="month_in_progress";
   document.getElementById("pending-observations").hidden=false;
   document.getElementById("pending-month").textContent=pending.month+(inProgress?" · "+monthKo+" 진행 중 / "+monthEn+" in progress":" · 자료 대기 / Data pending")+" · as of "+pending.as_of;
   document.getElementById("pending-coverage").textContent=
-    "관측된 구성 지표 / Available inputs: G "+pending.growth.available+"/"+pending.growth.total+
-    " (가중치 / weight "+pending.growth.weight.toFixed(2)+"), L "+pending.liquidity.available+"/"+
-    pending.liquidity.total+" (가중치 / weight "+pending.liquidity.weight.toFixed(2)+").";
+    "실제 관측 / Observed: G "+pending.growth.available+"/"+pending.growth.total+
+    ", L "+pending.liquidity.available+"/"+pending.liquidity.total+".";
   document.getElementById("pending-explanation").textContent=
-    "새 좌표·레짐 판정은 보류합니다. 4분면의 마지막 계산 좌표는 "+latest.d+"입니다. 미발표 값을 이월하거나 추정하지 않았습니다. "+
-    "No new point or regime judgment: last calculated month is "+latest.d+". Unreleased values are not carried forward or estimated.";
+    provisional?
+    "속 빈 점은 이전 신호 이월을 포함한 잠정치입니다. 확정 레짐·자산 성과에는 반영하지 않습니다. / Provisional; excluded from confirmed history and returns.":
+    "현재 자료로 잠정점을 계산할 수 없습니다. / Provisional point unavailable with current inputs.";
   const sources=document.getElementById("pending-sources");
   sources.append(document.createTextNode("실제 월중 관측 / Observed this month: "));
   pending.observed.forEach((row,i)=>{
@@ -533,6 +489,13 @@ if(pending){
     link.textContent=row.id+" ("+row.as_of+")";
     sources.append(link);
   });
+  if(provisional){
+    for(const axis of ["growth","liquidity"]){
+      const carried=Object.entries(provisional.inputs[axis]).filter(([,row])=>row.carried);
+      sources.append(document.createTextNode(" · "+(axis==="growth"?"G":"L")+" 이월 / carried: "+
+        carried.map(([id,row])=>id+" ("+row.used_month+")").join(", ")));
+    }
+  }
 }
 const recalc=DATA.meta.recalculation;
 if(pending&&recalc&&recalc.month===latest.d){
@@ -542,7 +505,7 @@ if(pending&&recalc&&recalc.month===latest.d){
   node.textContent=recalc.month+" 좌표 재계산 / Prior point recalculated: "+
     vals(recalc.before)+" → "+vals(recalc.after)+". "+
     "새로 발표된 해당 월 지표 / Newly available inputs: "+recalc.newly_available.join(", ")+". "+
-    monthKo+" 좌표는 아직 아닙니다 / This is not a "+monthEn+" point.";
+    "(관측월 재계산; 말일 당시 빈티지 아님 / recalculated observation month, not an as-of month-end vintage).";
 }
 
 /* 주식이 최고 성과 자산일 때 표시할 당대 주도 산업·대표 종목 (미국 증시 기준) */
@@ -798,6 +761,23 @@ function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
     svg.appendChild(group);
   });
   svg.appendChild(labelLayer);
+  if(!annual&&provisional){
+    const cx=X(provisional.g),cy=Y(provisional.l),base=points[points.length-1];
+    svg.appendChild(el("line",{x1:X(base.g),y1:Y(base.l),x2:cx,y2:cy,
+      stroke:"#7a4a2b","stroke-width":2.5,"stroke-dasharray":"3 5"}));
+    const ring=el("g",{"aria-label":provisional.month+" 월중 잠정 추정 G "+fmt(provisional.g)+
+      ", L "+fmt(provisional.l)+", 실제 관측 G "+provisional.coverage.growth.observed+
+      "/"+provisional.coverage.growth.total+" L "+provisional.coverage.liquidity.observed+
+      "/"+provisional.coverage.liquidity.total});
+    const title=el("title",{}); title.textContent=provisional.month+" 월중 잠정 추정 · as of "+provisional.as_of;
+    ring.appendChild(title);
+    ring.appendChild(el("path",{d:`M ${cx} ${cy-8} L ${cx+8} ${cy} L ${cx} ${cy+8} L ${cx-8} ${cy} Z`,class:"provisional-dot"}));
+    svg.appendChild(ring);
+    const lx=Math.min(cx+32,W-PAD.r-92),ly=Math.min(cy+38,H-PAD.b-12);
+    svg.appendChild(el("line",{x1:cx+7,y1:cy+7,x2:lx-3,y2:ly-5,stroke:"#7a4a2b","stroke-width":1.4}));
+    const label=el("text",{x:lx,y:ly,class:"pt-label"});
+    label.textContent=provisional.month.slice(2).replace("-",".")+" 잠정";svg.appendChild(label);
+  }
 }
 function describeDelta(value){
   if(Math.abs(value)<.10)return"거의 보합";
@@ -819,8 +799,10 @@ function renderRecent(){
   const preset=RECENT_PRESETS.find(p=>p.id===state.recentPreset),points=preset.get();
   $("recent-heading").textContent=preset.label+" 이동";
   updateMovementSummary(points);
-  renderQuadrant("recent-quad","recent-tooltip","recent-chartbox",points,{annual:false,ranges:recentAxisRanges(points),statusId:"recent-status"});
-  $("recent-status").textContent=preset.label+" · "+points[0].d+" ~ "+points[points.length-1].d+" · "+points.length+"개월 · 축별 확대";
+  renderQuadrant("recent-quad","recent-tooltip","recent-chartbox",points,{annual:false,
+    ranges:recentAxisRanges(provisional?[...points,provisional]:points),statusId:"recent-status"});
+  $("recent-status").textContent=preset.label+" · "+points[0].d+" ~ "+points[points.length-1].d+
+    " · "+points.length+" 계산월"+(provisional?" + "+provisional.month+" 잠정 추정":"")+" · 축별 확대";
 }
 function renderAnnual(){
   const preset=ANNUAL_PRESETS.find(p=>p.id===state.annualPreset),points=preset.get();

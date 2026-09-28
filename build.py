@@ -223,6 +223,55 @@ def composite(comps):
     score = roll_z(raw)                                   # 합성지수 재표준화
     return zdf, score.ewm(span=3, min_periods=1).mean().where(score.notna())
 
+def provisional_point(axes, raw, pending):
+    """A separately labeled current-month estimate; never add it to the monthly history.
+
+    Carry transformed indicator signals (not raw levels) when unreleased. Rolling
+    standardization and smoothing are unchanged, but the inputs are NOT a fully
+    observed month. A missing or older-than-three-month signal cancels the estimate.
+    """
+    if not pending:
+        return None
+    month = pd.Timestamp(pending["month"] + "-01")
+    as_of = pd.Timestamp(pending["as_of"])
+    result = {"month": pending["month"], "as_of": pending["as_of"],
+              "status": "provisional_carry_forward", "coverage": {}, "inputs": {}}
+    for axis, components in axes.items():
+        filled, provenance = {}, {}
+        observed_weight = 0.0
+        for series_id, component in components.items():
+            signal = component["t"].loc[:month].dropna()
+            if signal.empty:
+                return None
+            used_month = signal.index[-1]
+            if (month.year - used_month.year) * 12 + month.month - used_month.month > 3:
+                return None
+            dates = raw.get(series_id, pd.Series(dtype=float)).loc[:as_of].dropna()
+            if dates.empty:
+                return None
+            actual = any(d.strftime("%Y-%m") == pending["month"] for d in dates.index)
+            observed = actual and used_month.strftime("%Y-%m") == pending["month"]
+            weight = component["w"]
+            observed_weight += weight if observed else 0
+            values = component["t"].copy()
+            values.loc[month] = signal.iloc[-1]
+            filled[series_id] = {**component, "t": values.sort_index()}
+            provenance[series_id] = {"source_as_of": dates.index[-1].strftime("%Y-%m-%d"),
+                                     "used_month": used_month.strftime("%Y-%m"),
+                                     "weight": weight, "carried": not observed}
+        _, score = composite(filled)
+        value = score.loc[month] if month in score.index else np.nan
+        if pd.isna(value):
+            return None
+        result["g" if axis == "growth" else "l"] = round(float(value), 3)
+        result["coverage"][axis] = {"observed": sum(not p["carried"] for p in provenance.values()),
+                                   "total": len(provenance),
+                                   "observed_weight": round(observed_weight, 2),
+                                   "carried_weight": round(sum(p["weight"] for p in provenance.values() if p["carried"]), 2)}
+        result["inputs"][axis] = provenance
+    result["r"] = quadrant(result["g"], result["l"])
+    return result
+
 def quadrant(g, l):
     if g >= 0 and l >= 0: return "expansion"
     if g < 0 and l >= 0:  return "liquidity"
@@ -298,14 +347,17 @@ def build_data():
     ret12 = {k: (v[0].pct_change(12) * 100).reindex(df.index).round(1) for k, v in ASSETS.items()}
 
     nn = lambda v: None if pd.isna(v) else v
+    pending = pending_observations(
+        raw, df.index[-1].strftime("%Y-%m"), date.today(),
+        {"growth": {k: v["w"] for k, v in G_COMP.items()},
+         "liquidity": {k: v["w"] for k, v in L_COMP.items()}})
+    estimate = provisional_point({"growth": G_COMP, "liquidity": L_COMP}, raw, pending)
     out = {
         "meta": {
             "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d"),
             "latest": df.index[-1].strftime("%Y-%m"),
-            "pending_observations": pending_observations(
-                raw, df.index[-1].strftime("%Y-%m"), date.today(),
-                {"growth": {k: v["w"] for k, v in G_COMP.items()},
-                 "liquidity": {k: v["w"] for k, v in L_COMP.items()}}),
+            "pending_observations": pending,
+            "provisional_point": estimate,
             "window": WINDOW, "min_obs": MIN_OBS,
             "g_weights": {k: v["w"] for k, v in G_COMP.items()},
             "l_weights": {k: v["w"] for k, v in L_COMP.items()},
