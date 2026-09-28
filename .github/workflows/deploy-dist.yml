@@ -13,14 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Confirm public dist has no click-to-open control
+      - name: Confirm public dist has provisional point and no retired narrative
         run: |
           python3 - <<'PY'
           from pathlib import Path
           html = Path("dist/index.html").read_text(encoding="utf-8")
           assert "<h2>미국 매크로 정량 보조모델</h2>" in html
           assert "보조모델 열기" not in html
-          assert "<details>" not in html
+          assert 'class="provisional-pair"' in html
+          visible = html.split("<script>", 1)[0]
+          assert "원고 준거 월간 판독" not in visible
+          assert "이번 달 세 줄 기록" not in visible
           print("dist/index.html contract OK")
           PY
       - uses: actions/upload-pages-artifact@v3
