@@ -178,22 +178,33 @@ select:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
 .point-card .point-value{font:700 18px/1.5 var(--mono);color:var(--ink);margin-top:3px}
 .point-card .point-note{font-size:11px;color:var(--ink2);line-height:1.55}
 .provisional-dot{stroke:#7a4a2b;fill:#fffdf9;stroke-width:3}
-.gauge-board{display:grid;grid-template-columns:3fr 4fr;gap:12px}
-.gauge-group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card2)}
-.gauge-group h4{font-size:12px;letter-spacing:.05em;padding:10px 14px;border-bottom:1px solid var(--line)}
-.gauge-group h4{display:flex;justify-content:space-between;gap:8px}.gauge-group h4 span{font-size:11px;letter-spacing:0;color:var(--ink2)}
+.gauge-board{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:18px;container-type:inline-size}
+.gauge-group{min-width:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card)}
+.gauge-group h4{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:16px;padding:15px 18px;border-bottom:1px solid var(--line);background:var(--card2)}
+.gauge-group h4 span{font-size:13px;font-weight:500;color:var(--ink2)}
 .gauge-group.growth{border-top:3px solid var(--exp)}.gauge-group.liquidity{border-top:3px solid var(--liq)}
-.gauge-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+.gauge-row{display:block;min-width:0;padding:18px;border-top:1px solid var(--line)}
 .gauge-row:first-of-type{border-top:0}
-.gauge-row .title{font-size:13px;font-weight:800;line-height:1.4}
-.gauge-row .reading{font-size:12px;font-weight:800;text-align:right}
-.gauge-row .effect{grid-column:1/-1;font-size:10.5px;color:var(--ink2);line-height:1.4;overflow-wrap:anywhere}
-.gauge-row .effect a{color:var(--brand);text-decoration:underline;text-underline-offset:2px}
-.gauge-row.effect-up .reading{color:var(--exp)}.gauge-row.effect-down .reading{color:var(--def)}
-.gauge-row.effect-flat .reading{color:var(--adj)}
-.gauge-row.provisional{border-left:3px solid var(--adj)}
-.gauge-row.pending{border-left:3px solid var(--line);background:var(--card2)}
-.gauge-row.pending .reading{color:var(--ink2)}
+.gauge-row .gauge-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.gauge-row .title{flex:1;min-width:0;font-size:17px;font-weight:800;line-height:1.5;word-break:keep-all;overflow-wrap:break-word}
+.gauge-state{flex:none;border-radius:20px;padding:4px 9px;font-size:12px;line-height:1.5;background:var(--card2);color:var(--ink2)}
+.gauge-row .reading{font-size:24px;font-weight:800;line-height:1.45;text-align:left;margin-top:12px;overflow-wrap:anywhere}
+.gauge-row .comparison{font-size:14px;line-height:1.6;color:var(--ink2);margin-top:3px}
+.gauge-row .effect{font-size:13px;color:var(--ink2);line-height:1.6;margin-top:8px;overflow-wrap:anywhere}
+.gauge-row.effect-up:not(.pending) .reading{color:var(--exp)}.gauge-row.effect-down:not(.pending) .reading{color:var(--def)}.gauge-row.effect-flat:not(.pending) .reading{color:var(--adj)}
+.gauge-row.pending .reading{display:none}.gauge-row.pending .effect{margin-top:10px}
+.gauge-row details{margin-top:10px}.gauge-row summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:13px;color:var(--brand)}
+.gauge-row summary::before{content:"＋";margin-right:7px}.gauge-row details[open] summary::before{content:"−"}
+.gauge-row details p{font-size:13px;line-height:1.65;margin:6px 0;color:var(--ink2);overflow-wrap:anywhere}
+.gauge-row a{color:var(--brand);text-decoration:underline;text-underline-offset:3px;display:inline-block;padding:6px 0;min-height:44px}
+.gauge-row summary:focus-visible,.gauge-row a:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
+.book-panel-head{align-items:flex-start}.book-panel-head h3{font-size:22px;line-height:1.4}
+.book-overview{display:flex;flex-wrap:wrap;gap:14px 22px;margin:15px 0 22px;padding:14px 16px;background:var(--card2);border-radius:10px}
+.book-overview div{min-width:100px}.book-overview span{display:block;color:var(--ink2);font-size:13px;line-height:1.6}.book-overview b{display:block;font:700 18px/1.5 var(--mono);color:var(--ink)}
+.book-panel .book-description{font-size:14px;line-height:1.7;color:var(--ink2);margin-top:6px;text-align:left}
+@container(max-width:650px){.gauge-group{grid-column:1/-1}}
+@media(max-width:900px){.book-panel{padding:18px}}
+
 footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-size:12px;color:var(--ink3);line-height:1.8}
 @media(max-width:1080px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.method-grid{grid-template-columns:1fr}}
 @media(max-width:720px){
@@ -357,10 +368,11 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 
 <section id="book-dashboard" class="book-dashboard">
   <div class="book-panel">
-    <div class="book-panel-head"><h3>일곱 지표 계기판</h3><p><b id="book-latest">—</b> 점검 · 관측 <b id="book-count">—</b>/7 · 전체 확인 <b id="book-confirmed">—</b></p></div>
+    <div class="book-panel-head"><div><h3>일곱 지표 계기판</h3><p class="book-description">성장과 자금 흐름의 방향을 확인합니다. 관측 대기는 중립 판정과 다릅니다.</p></div></div>
+    <div class="book-overview"><div><span>현재 점검월</span><b id="book-latest">—</b></div><div><span>이번 달 관측</span><b><span id="book-count" style="display:inline;font:inherit;color:inherit">—</span> / 7</b></div><div><span>최근 일곱 지표 전체 확인</span><b id="book-confirmed">—</b></div></div>
     <div class="gauge-board">
-      <div class="gauge-group growth"><h4>성장 · G / 3 <span id="book-growth-count">—</span></h4><div id="book-growth"></div></div>
-      <div class="gauge-group liquidity"><h4>유동성 · L / 4 <span id="book-liquidity-count">—</span></h4><div id="book-liquidity"></div></div>
+      <div class="gauge-group growth"><h4>성장 · 3개 지표 <span id="book-growth-count">—</span></h4><div id="book-growth"></div></div>
+      <div class="gauge-group liquidity"><h4>유동성 · 4개 지표 <span id="book-liquidity-count">—</span></h4><div id="book-liquidity"></div></div>
     </div>
   </div>
 </section>
@@ -387,21 +399,40 @@ function renderBookDashboard(){
     document.getElementById("book-"+axis+"-count").textContent=items.filter(item=>item.state!=="pending").length+"/"+items.length+" 관측";
   }
   for(const axis of ["growth","liquidity"])document.getElementById("book-"+axis).replaceChildren();
-  Object.values(month.indicators).forEach(item=>{
-    const card=document.createElement("article");
-    card.className="gauge-row effect-"+item.effect+" "+item.state;
-    const title=document.createElement("div"); title.className="title"; title.textContent=item.label_ko;
-    const reading=document.createElement("div"); reading.className="reading";
-    reading.textContent=BOOK_ARROWS[item.direction]+" "+item.reading_ko;
-    const effect=document.createElement("div"); effect.className="effect";
-    const effectText=item.effect==="up"?"개선":item.effect==="down"?"악화":item.effect==="flat"?"중립":"미확인";
-    const prefix=item.state==="pending"?"마지막 자료 ":"잠정 관측 · ";
-    effect.textContent=(item.axis==="growth"?"G":"L")+" "+effectText+" · "+prefix+item.as_of+" · ";
+  Object.entries(month.indicators).forEach(([key,item])=>{
+    const pending=item.state==="pending";
+    const card=document.createElement("article");card.className="gauge-row effect-"+item.effect+" "+item.state;
+    const top=document.createElement("div");top.className="gauge-top";
+    const title=document.createElement("div");title.className="title";title.textContent=item.label_ko;
+    const state=document.createElement("span");state.className="gauge-state";state.textContent=pending?"관측 대기":item.state==="confirmed"?"확인 완료":"잠정 관측";
+    top.append(title,state);
+    const reading=document.createElement("div");reading.className="reading";
+    const comparison=document.createElement("div");comparison.className="comparison";
+    const effectText={up:"개선",down:"악화",flat:"중립"}[item.effect] || "판정 대기";
+    const match=item.reading_ko.match(/^당월 평균 ([+-]?[\d.]+) \/ 전월 ([+-]?[\d.]+)/);
+    const unit={high_yield_spread:"%",usdkrw_position:"원",dollar_index_trend:""}[key] || "";
+    if(pending){
+      reading.textContent="—";reading.setAttribute("aria-label","관측값 없음");
+      comparison.hidden=true;
+    }else if(match){
+      reading.textContent=(BOOK_ARROWS[item.direction] || "")+" "+match[1]+unit;
+      comparison.textContent="전월 평균 "+match[2]+unit+" · "+(item.axis==="growth"?"성장":"유동성")+" "+effectText;
+    }else{
+      reading.textContent=(BOOK_ARROWS[item.direction] || "")+" "+item.reading_ko;
+      comparison.textContent=(item.axis==="growth"?"성장":"유동성")+" "+effectText;
+    }
+    const date=document.createElement("div");date.className="effect";date.textContent=(pending?"마지막 자료 · ":"관측 기준 · ")+item.as_of;
+    const details=document.createElement("details");const summary=document.createElement("summary");summary.textContent="출처·관측 설명";details.append(summary);
+    const source=document.createElement("p");source.append("출처: ");
     if(item.source_url && item.source_url.startsWith("https://")){
-      const source=document.createElement("a");source.href=item.source_url;source.target="_blank";
-      source.rel="noopener noreferrer";source.textContent=item.source_name;effect.appendChild(source);
-    } else effect.append(item.source_name);
-    card.append(title,reading,effect); document.getElementById("book-"+item.axis).appendChild(card);
+      const link=document.createElement("a");link.href=item.source_url;link.target="_blank";link.rel="noopener noreferrer";link.textContent=item.source_name;source.append(link);
+    }else source.append(item.source_name);
+    const note=document.createElement("p");
+    note.textContent=pending
+      ?(item.reading_ko.includes("no observations in both comparison months")?"이번 달과 비교할 전월 자료가 모두 갖춰지지 않아 방향을 판정하지 않았습니다.":item.reading_ko.includes("마지막 기록")?"현재 점검월에 새로 확인된 판독이 없습니다. 이전 기록의 방향을 현재 판단으로 사용하지 않습니다.":"원자료 확인이 완료되지 않아 방향을 판정하지 않았습니다.")
+      :item.state==="provisional"?"진행 중인 달의 평균입니다. 관측이 추가되면 값과 방향이 달라질 수 있습니다.":"확인된 월간 판독 기록입니다.";
+    details.append(source,note);
+    card.append(top,reading,comparison,date,details);document.getElementById("book-"+item.axis).appendChild(card);
   });
 }
 renderBookDashboard();
