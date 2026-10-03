@@ -92,6 +92,9 @@ class SeptemberStatusTests(unittest.TestCase):
 
     def test_public_html_shows_pending_month_but_keeps_last_point(self):
         data = json.loads((build.Path(__file__).resolve().parents[1] / "dist/gl_data.json").read_text())
+        # Fixed September scenario must not depend on later live dist updates.
+        data["months"] = [m for m in data["months"] if m["d"] < "2026-09"]
+        data["meta"]["latest"] = data["months"][-1]["d"]
         data["meta"]["pending_observations"] = {
             "month": "2026-09", "as_of": "2026-09-25", "status": "month_in_progress",
             "growth": {"available": 1, "total": 5, "weight": .10},
