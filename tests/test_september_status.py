@@ -95,6 +95,8 @@ class SeptemberStatusTests(unittest.TestCase):
         # Fixed September scenario must not depend on later live dist updates.
         data["months"] = [m for m in data["months"] if m["d"] < "2026-09"]
         data["meta"]["latest"] = data["months"][-1]["d"]
+        # Keep the v2 comparison metadata in the same fixed historical scenario.
+        data["meta"]["v1_compare"] = [m for m in data["meta"].get("v1_compare", []) if m["d"] < "2026-09"]
         data["meta"]["pending_observations"] = {
             "month": "2026-09", "as_of": "2026-09-25", "status": "month_in_progress",
             "growth": {"available": 1, "total": 5, "weight": .10},

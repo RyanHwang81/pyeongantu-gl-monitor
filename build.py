@@ -21,6 +21,7 @@ import ssl
 import certifi
 import pandas as pd
 import numpy as np
+from model_v2 import composite, composite_v1, roll_z, row_flags, net_liquidity, expanding_percentile
 
 WINDOW, MIN_OBS, CLAMP, MIN_EFF_W = 216, 48, 3.0, 0.4
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
@@ -248,6 +249,11 @@ def pending_observations(raw, latest_month, today, weights=None):
             **coverage, "observed": observed}
 
 def recalculation_note(prior, current):
+    if prior and prior.get('meta',{}).get('model_version')!='2.0' and current.get('meta',{}).get('model_version')=='2.0':
+        old,new=prior['months'][-1],current['months'][-1]
+        return {'month':new['d'],'scope':'all_history','reason':'model_v1_to_v2',
+                'before':{k:old[k] for k in ('g','l','r')},'after':{k:new[k] for k in ('g','l','r')},
+                'newly_available':[]}
     if not prior or not prior.get("months") or not current["months"]:
         return None
     old, new = prior["months"][-1], current["months"][-1]
@@ -270,67 +276,47 @@ def recalculation_note(prior, current):
 def to_monthly(s):
     return s.resample("MS").mean()
 
-def roll_z(s):
-    m = s.rolling(WINDOW, min_periods=MIN_OBS).mean()
-    sd = s.rolling(WINDOW, min_periods=MIN_OBS).std()
-    return ((s - m) / sd).clip(-CLAMP, CLAMP)
-
-def composite(comps):
-    zdf = pd.DataFrame({k: roll_z(v["t"]) for k, v in comps.items()})
-    w = pd.Series({k: v["w"] for k, v in comps.items()})
-    effw = zdf.notna().mul(w, axis=1).sum(axis=1)
-    raw = zdf.mul(w, axis=1).sum(axis=1, min_count=1) / effw
-    raw[effw < MIN_EFF_W] = np.nan
-    score = roll_z(raw)                                   # 합성지수 재표준화
-    return zdf, score.ewm(span=3, min_periods=1).mean().where(score.notna())
-
 def provisional_point(axes, raw, pending):
-    """A separately labeled current-month estimate; never add it to the monthly history.
-
-    Carry transformed indicator signals (not raw levels) when unreleased. Rolling
-    standardization and smoothing are unchanged, but the inputs are NOT a fully
-    observed month. A missing or older-than-three-month signal cancels the estimate.
-    """
-    if not pending:
-        return None
-    month = pd.Timestamp(pending["month"] + "-01")
-    as_of = pd.Timestamp(pending["as_of"])
-    result = {"month": pending["month"], "as_of": pending["as_of"],
-              "status": "provisional_carry_forward", "coverage": {}, "inputs": {}}
-    for axis, components in axes.items():
-        filled, provenance = {}, {}
-        observed_weight = 0.0
-        for series_id, component in components.items():
-            signal = component["t"].loc[:month].dropna()
-            if signal.empty:
-                return None
-            used_month = signal.index[-1]
-            if (month.year - used_month.year) * 12 + month.month - used_month.month > 3:
-                return None
-            dates = raw.get(series_id, pd.Series(dtype=float)).loc[:as_of].dropna()
-            if dates.empty:
-                return None
-            actual = any(d.strftime("%Y-%m") == pending["month"] for d in dates.index)
-            observed = actual and used_month.strftime("%Y-%m") == pending["month"]
-            weight = component["w"]
-            observed_weight += weight if observed else 0
-            values = component["t"].copy()
-            values.loc[month] = signal.iloc[-1]
-            filled[series_id] = {**component, "t": values.sort_index()}
-            provenance[series_id] = {"source_as_of": dates.index[-1].strftime("%Y-%m-%d"),
-                                     "used_month": used_month.strftime("%Y-%m"),
-                                     "weight": weight, "carried": not observed}
-        _, score = composite(filled)
-        value = score.loc[month] if month in score.index else np.nan
-        if pd.isna(value):
-            return None
-        result["g" if axis == "growth" else "l"] = round(float(value), 3)
-        result["coverage"][axis] = {"observed": sum(not p["carried"] for p in provenance.values()),
-                                   "total": len(provenance),
-                                   "observed_weight": round(observed_weight, 2),
-                                   "carried_weight": round(sum(p["weight"] for p in provenance.values() if p["carried"]), 2)}
-        result["inputs"][axis] = provenance
-    result["r"] = quadrant(result["g"], result["l"])
+    """Separate current-month estimate using the monthly history's carry/statistics rules."""
+    if not pending:return None
+    month=pd.Timestamp(pending['month']+'-01')
+    as_of=pd.Timestamp(pending['as_of'])
+    result={'month':pending['month'],'as_of':pending['as_of'],
+            'status':'provisional_carry_forward','p':True,'c':False,'coverage':{},'inputs':{}}
+    values={}
+    for axis,components in axes.items():
+        sliced={k:{**c,'t':c['t'].loc[:month]} for k,c in components.items()}
+        dates=[d for c in sliced.values() for d in c['t'].index]
+        if not dates:return None
+        result_axis=composite(sliced,pd.date_range(min(dates),month,freq='MS'))
+        if pd.isna(result_axis.score.loc[month]):return None
+        provenance={}
+        for sid,c in sliced.items():
+            start=c.get('available_from',c['t'].first_valid_index())
+            if start is not None and month<pd.Timestamp(start).to_period('M').to_timestamp():continue
+            if pd.isna(result_axis.z.loc[month,sid]):return None
+            dates=raw.get(sid,pd.Series(dtype=float,index=pd.DatetimeIndex([]))).loc[:as_of].dropna()
+            if dates.empty:return None
+            carried=result_axis.carried.loc[month,sid]
+            provenance[sid]={'source_as_of':dates.index[-1].strftime('%Y-%m-%d'),
+                             'used_month':carried or pending['month'],'weight':c['w'],'carried':bool(carried)}
+        observed=sum(p['weight'] for p in provenance.values() if not p['carried'])
+        result['coverage'][axis]={'observed':sum(not p['carried'] for p in provenance.values()),
+                                 'total':len(provenance),'observed_weight':round(observed,2),
+                                 'observed_ratio':round(float(result_axis.observed_ratio.loc[month]),2),
+                                 'carried_weight':round(sum(p['weight'] for p in provenance.values() if p['carried']),2)}
+        result['inputs'][axis]=provenance
+        key='g' if axis=='growth' else 'l'
+        result[key]=round(float(result_axis.score.loc[month]),3)
+        result[key+'r']=round(float(result_axis.raw.loc[month]),3)
+        percentile=expanding_percentile(result_axis.raw).loc[month]
+        result[key+'p']=round(float(percentile))
+        result[key+'z']={sid:round(float(z),2) for sid,z in result_axis.z.loc[month].items() if pd.notna(z)}
+        values[key]=result[key]
+    result['r']=quadrant(result['g'],result['l'])
+    result['n']=abs(result['g'])<.15 and abs(result['l'])<.15
+    result['b']=(abs(result['g'])<.15 or abs(result['l'])<.15) and not result['n']
+    result['x']=result['g']*result['gr']<0 or result['l']*result['lr']<0
     return result
 
 def quadrant(g, l):
@@ -342,52 +328,80 @@ def quadrant(g, l):
 def build_data():
     log = lambda *a: print("[data]", *a, flush=True)
     log("FRED 지표 수집...")
-    permit, indpro, payems = fred("PERMIT"), fred("INDPRO"), fred("PAYEMS")
-    unrate, icsa = fred("UNRATE"), fred("ICSA")
-    m2sl, t10y3m, fedfunds = fred("M2SL"), fred("T10Y3M"), fred("FEDFUNDS")
-    totalsl, baa10y, walcl = fred("TOTALSL"), fred("BAA10YM"), fred("WALCL")
-    nasdaq, wti = fred("NASDAQCOM"), fred("WTISPLC")
-    gs10, tb3 = fred("GS10"), fred("TB3MS")
-    raw = dict(zip(("PERMIT", "INDPRO", "PAYEMS", "UNRATE", "ICSA", "M2SL",
-                    "T10Y3M", "FEDFUNDS", "TOTALSL", "BAA10YM", "WALCL"),
-                   (permit, indpro, payems, unrate, icsa, m2sl, t10y3m,
-                    fedfunds, totalsl, baa10y, walcl)))
-
-    permit, indpro, payems = map(to_monthly, (permit, indpro, payems))
-    unrate, icsa = to_monthly(unrate), to_monthly(icsa)
-    m2sl, t10y3m, fedfunds = map(to_monthly, (m2sl, t10y3m, fedfunds))
-    totalsl, baa10y, walcl = map(to_monthly, (totalsl, baa10y, walcl))
-    nasdaq, wti, gs10, tb3 = map(to_monthly, (nasdaq, wti, gs10, tb3))
-
-    yoy = lambda s: s.pct_change(12) * 100.0
-    G_COMP = {
-        "PERMIT":  {"t": yoy(permit), "w": .28, "label": "건축허가 YoY"},
-        "INDPRO":  {"t": yoy(indpro), "w": .24, "label": "산업생산 YoY"},
-        "PAYEMS":  {"t": yoy(payems), "w": .24, "label": "비농업고용 YoY"},
-        "UNRATE":  {"t": -(unrate - unrate.shift(12)), "w": .14, "label": "실업률 12M 변화 (역)"},
-        "ICSA":    {"t": -yoy(icsa),  "w": .10, "label": "신규실업수당청구 YoY (역)"},
+    source_errors={}
+    ids=('PERMIT','INDPRO','PAYEMS','UNRATE','ICSA','M2SL','T10Y3M','FEDFUNDS',
+         'TOTALSL','BAA10YM','WALCL','DGS2','DTWEXBGS','WTREGEN','RRPONTSYD',
+         'NASDAQCOM','WTISPLC','GS10','TB3MS')
+    raw={}
+    for sid in ids:
+        try:raw[sid]=fred(sid).loc[:pd.Timestamp(date.today())]
+        except Exception as exc:
+            source_errors[sid]=type(exc).__name__
+            raw[sid]=pd.Series(dtype=float,index=pd.DatetimeIndex([]))
+            log(sid,'source_error',type(exc).__name__)
+    monthly={k:to_monthly(v) for k,v in raw.items()}
+    permit,indpro,payems,unrate,icsa=(monthly[k] for k in ('PERMIT','INDPRO','PAYEMS','UNRATE','ICSA'))
+    m2sl,t10y3m,fedfunds,totalsl,baa10y,walcl=(monthly[k] for k in ('M2SL','T10Y3M','FEDFUNDS','TOTALSL','BAA10YM','WALCL'))
+    nasdaq,wti,gs10,tb3=(monthly[k] for k in ('NASDAQCOM','WTISPLC','GS10','TB3MS'))
+    netliq=net_liquidity(walcl,monthly['WTREGEN'],monthly['RRPONTSYD'])
+    # Provenance uses the latest common actual input date in each monthly estimate.
+    net_dates=[];net_values=[]
+    rrp_start=raw['RRPONTSYD'].first_valid_index()
+    for month,value in netliq.dropna().items():
+        series_ids=['WALCL','WTREGEN']+(['RRPONTSYD'] if rrp_start is not None and month.to_period('M')>=rrp_start.to_period('M') else [])
+        last=[v.index[-1] for sid in series_ids if not (v:=raw[sid][raw[sid].index.to_period('M')==month.to_period('M')]).empty]
+        if len(last)==len(series_ids):net_dates.append(min(last));net_values.append(value)
+    raw['NETLIQ']=pd.Series(net_values,index=pd.DatetimeIndex(net_dates),dtype=float)
+    raw['DOLLAR']=raw['DTWEXBGS']
+    yoy=lambda s:s.pct_change(12,fill_method=None)*100.0
+    G_COMP={
+        'PERMIT':{'t':yoy(permit),'w':.28,'label':'건축허가 YoY'},
+        'INDPRO':{'t':yoy(indpro),'w':.24,'label':'산업생산 YoY'},
+        'PAYEMS':{'t':yoy(payems),'w':.24,'label':'비농업고용 YoY'},
+        'UNRATE':{'t':-(unrate-unrate.shift(12)),'w':.14,'label':'실업률 12M 변화 (역)'},
+        'ICSA':{'t':-yoy(icsa),'w':.10,'label':'신규실업수당청구 YoY (역)'},
     }
-    L_COMP = {
-        "M2SL":    {"t": yoy(m2sl),   "w": .22, "label": "M2 YoY"},
-        "T10Y3M":  {"t": t10y3m,      "w": .18, "label": "10Y-3M 기간스프레드"},
-        "FEDFUNDS":{"t": -(fedfunds - fedfunds.shift(3)), "w": .18, "label": "기준금리 3M 변화 (역)"},
-        "TOTALSL": {"t": yoy(totalsl),"w": .14, "label": "소비자신용 YoY"},
-        "BAA10YM": {"t": -baa10y,     "w": .14, "label": "Baa-10Y 신용스프레드 (역)"},
-        "WALCL":   {"t": yoy(walcl),  "w": .14, "label": "연준 총자산 YoY"},
+    L_COMP={
+        'M2SL':{'t':yoy(m2sl),'w':.18,'label':'M2 YoY'},
+        'DGS2':{'t':-(monthly['DGS2']-monthly['DGS2'].shift(3)),'w':.18,'label':'2년물 금리 3M 변화 (역)'},
+        'NETLIQ':{'t':yoy(netliq),'w':.15,'label':'순유동성(연준자산−TGA−역레포) YoY'},
+        'DOLLAR':{'t':-yoy(monthly['DTWEXBGS']),'w':.15,'label':'광의 달러지수 YoY (역)'},
+        'T10Y3M':{'t':t10y3m,'w':.12,'label':'10Y-3M 기간스프레드'},
+        'BAA10YM':{'t':-baa10y,'w':.12,'label':'Baa-10Y 신용스프레드 (역)'},
+        'TOTALSL':{'t':yoy(totalsl),'w':.10,'label':'소비자신용 YoY'},
     }
+    # Freeze v1's implicit pct_change fill behavior for the comparison only.
+    old_yoy=lambda x:x.ffill().pct_change(12,fill_method=None)*100
+    G_V1={k:{**v,'t':old_yoy(monthly[k])*(-1 if k=='ICSA' else 1)} if k!='UNRATE' else dict(v) for k,v in G_COMP.items()}
+    L_V1={
+        'M2SL':{'t':old_yoy(m2sl),'w':.22},'T10Y3M':{'t':t10y3m,'w':.18},
+        'FEDFUNDS':{'t':-(fedfunds-fedfunds.shift(3)),'w':.18},
+        'TOTALSL':{'t':old_yoy(totalsl),'w':.14},'BAA10YM':{'t':-baa10y,'w':.14},
+        'WALCL':{'t':old_yoy(walcl),'w':.14},
+    }
+    for comps in (G_COMP,L_COMP):
+        for key,c in comps.items():c['available_from']=raw[key].first_valid_index()
     log("G/L 점수 산출...")
-    Gz, G = composite(G_COMP)
-    Lz, L = composite(L_COMP)
-    df = pd.DataFrame({"G": G, "L": L}).dropna()
-    df = df[df.index >= "1972-01-01"]
-
-    df["regime"] = [quadrant(g, l) for g, l in zip(df.G, df.L)]
-    conf, neutral = [], []
-    for i, (g, l, r) in enumerate(zip(df.G, df.L, df.regime)):
-        neutral.append(bool(abs(g) < .15 and abs(l) < .15))
-        conf.append(bool((i > 0 and df.regime.iloc[i-1] == r) or (abs(g) > .25 and abs(l) > .25)))
-    df["confirmed"], df["neutral"] = conf, neutral
-    Gz, Lz = Gz.reindex(df.index).round(2), Lz.reindex(df.index).round(2)
+    dates=[d for c in (*G_COMP.values(),*L_COMP.values()) for d in c['t'].index]
+    index=pd.date_range(min(dates),pd.Timestamp(date.today()).replace(day=1),freq='MS')
+    ga,la=composite(G_COMP,index),composite(L_COMP,index)
+    Gz,Lz=ga.z,la.z
+    df=pd.DataFrame({'G':ga.score,'L':la.score,'gr':ga.raw,'lr':la.raw,
+                     'owg':ga.observed_ratio,'owl':la.observed_ratio}).dropna()
+    df=df[(df.index>='1972-01-01')&(df.index<index[-1])]
+    df=df[(df.owg>=.4-1e-10)&(df.owl>=.4-1e-10)]
+    if df.empty:raise RuntimeError('Insufficient actual GL coverage')
+    gp,lp=expanding_percentile(ga.raw),expanding_percentile(la.raw)
+    flags=[];previous=None
+    for d,row in df.iterrows():
+        flag=row_flags(row.G,row.L,row.gr,row.lr,row.owg,row.owl,previous)
+        flags.append(flag);previous=flag['r']
+    Gz,Lz=Gz.reindex(df.index).round(2),Lz.reindex(df.index).round(2)
+    _,v1g,_=composite_v1(G_V1);_,v1l,_=composite_v1(L_V1)
+    v1=pd.DataFrame({'g':v1g,'l':v1l}).dropna()
+    v1=v1[(v1.index>='1972-01-01')&(v1.index<index[-1])]
+    compare=[{'d':d.strftime('%Y-%m'),'g':round(row.g,3),'l':round(row.l,3),
+              'r':quadrant(row.g,row.l)} for d,row in v1.tail(36).iterrows()]
 
     log("자산군 수익률 산출...")
     sp = pd.read_csv(io.StringIO(fetch(SPX_URL)))[["Date", "SP500"]].dropna()
@@ -416,6 +430,13 @@ def build_data():
     out = {
         "meta": {
             "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d"),
+            "model_version":"2.0",
+            "model_changes":["Transformed tail carry up to 3 months; actual-only statistics and available-universe coverage", "Neutral/boundary/provisional months cannot confirm a regime", "DGS2, net liquidity and broad dollar replace lagging liquidity inputs", "Raw composites and causal expanding percentiles accompany relative scores"],
+            "source_errors":source_errors,"v1_compare":compare,
+            "latest_liquidity_components":[{'id':k,'z':round(float(la.z.loc[df.index[-1],k]),6) if pd.notna(la.z.loc[df.index[-1],k]) else None,
+                'weight':v['w'],'contribution':round(float(la.z.loc[df.index[-1],k])*v['w'],6) if pd.notna(la.z.loc[df.index[-1],k]) else None,
+                'carried_from':la.carried.loc[df.index[-1],k] or None} for k,v in L_COMP.items()],
+            "source_first_observation":{k:v.index[0].strftime('%Y-%m-%d') if not v.empty else None for k,v in raw.items()},
             "latest": df.index[-1].strftime("%Y-%m"),
             "pending_observations": pending,
             "provisional_point": estimate,
@@ -427,19 +448,22 @@ def build_data():
             "asset_labels": {k: v[1] for k, v in ASSETS.items()},
         },
         "months": [
-            {"d": d.strftime("%Y-%m"), "g": round(r.G, 3), "l": round(r.L, 3),
-             "r": r.regime, "c": r.confirmed, "n": r.neutral,
-             "gz": {k: nn(Gz.loc[d, k]) for k in Gz.columns},
-             "lz": {k: nn(Lz.loc[d, k]) for k in Lz.columns},
-             "a":  {k: nn(ret12[k].loc[d]) for k in ret12}}
-            for d, r in df.iterrows()
+            {"d":d.strftime('%Y-%m'),"g":round(row.G,3),"l":round(row.L,3),**flag,
+             "gr":round(row.gr,3),"lr":round(row.lr,3),"gp":round(float(gp.loc[d])),"lp":round(float(lp.loc[d])),
+             "cf":{k:used for result in (ga,la) for k,used in result.carried.loc[d].items() if used},
+             "gz":{k:nn(Gz.loc[d,k]) for k in Gz.columns},"lz":{k:nn(Lz.loc[d,k]) for k in Lz.columns},
+             "a":{k:nn(ret12[k].loc[d]) for k in ret12}}
+            for (d,row),flag in zip(df.iterrows(),flags)
         ],
     }
-    log(f"완료 — {len(df)}개월, 최신 {out['meta']['latest']}, "
-        f"G={df.G.iloc[-1]:+.2f} L={df.L.iloc[-1]:+.2f} ({df.regime.iloc[-1]})")
+    log(f"완료 — {len(df)} months, latest {out['meta']['latest']}, "
+        f"G={df.G.iloc[-1]:+.3f} L={df.L.iloc[-1]:+.3f} ({flags[-1]['r']})")
     return out
 
-def render(template, data, book_data, public):
+def render(template, data, book_data, public, language='ko'):
+    if language=='en':
+        from localization import english
+        template,data,book_data=english(template,data,book_data)
     html = template.replace("__GL_DATA__", json.dumps(data, ensure_ascii=False))
     html = html.replace("__BOOK_DATA__", json.dumps(book_data, ensure_ascii=False))
     if public:
@@ -472,9 +496,9 @@ def main():
           f"pending={book_data['meta']['pending_count']}",
           "source_errors=" + ",".join(book_errors))
     os.makedirs(a.out, exist_ok=True)
-    for name, pub in [("index.html", True), ("gl-internal.html", False)]:
+    for name, pub in [("index.html", True), ("gl-internal.html", False), ("en.html", True)]:
         p = os.path.join(a.out, name)
-        open(p, "w", encoding="utf-8").write(render(tpl, data, book_data, pub))
+        open(p, "w", encoding="utf-8").write(render(tpl, data, book_data, pub,language="en" if name=="en.html" else "ko"))
         print(f"[build] {p}  ({os.path.getsize(p)//1024} KB, {'공개용' if pub else '내부용'})")
     with open(os.path.join(a.out, "gl_data.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
