@@ -26,9 +26,14 @@ jobs:
           assert "이번 달 세 줄 기록" not in visible
           print("dist/index.html contract OK")
           PY
+      - name: Stage public files only
+        run: |
+          mkdir -p dist-public
+          cp dist/index.html dist/en.html dist/gl_data.json dist-public/
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist-public
 
   deploy:
     needs: upload
