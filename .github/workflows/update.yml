@@ -65,10 +65,15 @@ jobs:
             git push
           fi
 
+      - name: Stage public files only
+        run: |
+          mkdir -p dist-public
+          cp dist/index.html dist/en.html dist/gl_data.json dist-public/
+
       - name: GitHub Pages 업로드
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist-public
 
   deploy:
     needs: build
