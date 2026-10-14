@@ -14,7 +14,7 @@ const base=process.env.GL_QA_BASE;
     raw:document.getElementById('kpi-l-raw').textContent,bands:document.querySelectorAll('#recent-quad .boundary-band').length,
     selected:document.getElementById('status-sel').textContent,assets:document.querySelectorAll('#asset-rank .asset-row').length,
     method:document.getElementById('v1-comparison')!==null,body:document.body.innerText}));
-  if(check.scroll>width+1||check.lang!==lang||check.version!=='2.0'||check.method||check.bands!==2||errors.length)throw Error(JSON.stringify({lang,width,scroll:check.scroll,method:check.method,bands:check.bands,errors}));
+  if(check.scroll>width+1||check.lang!==lang||check.version!=='3.0'||check.method||check.bands!==2||errors.length)throw Error(JSON.stringify({lang,width,scroll:check.scroll,method:check.method,bands:check.bands,errors}));
   if(check.latest.p&&(check.assets!==0||!check.body.includes(lang==='ko'?'잠정':'Provisional')))throw Error('provisional presentation');
   const expected=await page.evaluate(()=>annualize(M.filter(m=>!m.p)));
   if(JSON.stringify(check.annual)!==JSON.stringify(expected))throw Error('provisional annual average');
