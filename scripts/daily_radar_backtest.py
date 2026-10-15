@@ -71,6 +71,28 @@ L_SPEC = {
 }
 FETCH = ('IC4WSA', 'CCSA', 'WEI', 'GDPNOW', 'SP500', 'NASDAQCOM', 'T5YIE', 'WALCL', 'WDTGAL',
          'RRPONTSYD', 'DGS2', 'DFF', 'T10Y3M', 'BAMLH0A0HYM2', 'BAA10Y', 'DTWEXBGS', 'NFCI', 'VIXCLS')
+# G-axis variants for the redesign comparison. Fixed before the first real-data run.
+# Each changes one thing: the z baseline, the horizon, or the components.
+# D/E weights are the monthly v3 G weights mapped onto daily analogues, not fitted:
+# WEI <- INDPRO+PAYEMS (.24+.24), CCSA <- UNRATE (.14), IC4WSA <- ICSA (.10); PERMIT has no daily analogue.
+_yoy52 = lambda s: -s.pct_change(52, fill_method=None) * 100
+_D_W = {'WEI': .48, 'CCSA': .14, 'IC4WSA': .10}
+_D_W = {k: round(v / sum(_D_W.values()), 4) for k, v in _D_W.items()}
+G_YOY = {
+    **{k: dict(v) for k, v in G_SPEC.items()},
+    'SP500': {**G_SPEC['SP500'], 't': lambda s: s.pct_change(252, fill_method=None) * 100},
+    'T5YIE': {**G_SPEC['T5YIE'], 't': lambda s: s.diff(252)},
+}
+G_MONTHLY_ANALOG = {k: {**G_SPEC[k], 'w': w} for k, w in _D_W.items()}
+G_VARIANTS = {
+    'A 기존(6지표·단기·3년 기준)': dict(spec=G_SPEC, z_window=Z_WINDOW),
+    'B 6지표·단기·장기 기준': dict(spec=G_SPEC, z_window=None),
+    'C 6지표·YoY·장기 기준': dict(spec=G_YOY, z_window=None),
+    'D 월간대응 3지표·YoY·장기 기준': dict(spec=G_MONTHLY_ANALOG, z_window=None),
+    'E 월간대응 3지표·YoY·3년 기준': dict(spec=G_MONTHLY_ANALOG, z_window=Z_WINDOW),
+}
+TRAIN = ('학습 2009-2019', None, '2019-12-31')
+TEST = ('검증 2020-현재', '2020-01-01', None)
 MILLIONS = {'WALCL': 1.0, 'WDTGAL': 1.0, 'RRPONTSYD': 1000.0}   # FRED default units, used without the API
 
 
@@ -147,13 +169,18 @@ def inputs(raw, start):
 
 # ---------------------------------------------------------------- radar
 
-def robust_z(x):
-    med = x.rolling(Z_WINDOW, min_periods=Z_MIN).median()
-    mad = (x - med).abs().rolling(Z_WINDOW, min_periods=Z_MIN).median() * 1.4826
+def _window(x, window):
+    return x.expanding(min_periods=Z_MIN) if window is None else x.rolling(window, min_periods=Z_MIN)
+
+
+def robust_z(x, window=Z_WINDOW):
+    """Causal median/MAD z. window=None uses all history up to each day."""
+    med = _window(x, window).median()
+    mad = _window((x - med).abs(), window).median() * 1.4826
     return ((x - med) / mad.replace(0, np.nan)).clip(-3, 3)
 
 
-def axis_score(spec, series, bdays, include):
+def axis_score(spec, series, bdays, include, z_window=Z_WINDOW):
     zs, ws = {}, {}
     for sid, item in spec.items():
         if sid not in include or series[sid].empty:
@@ -166,7 +193,7 @@ def axis_score(spec, series, bdays, include):
         last_obs = pd.Series(native.index, index=native.index).reindex(native.index.union(bdays)).ffill().reindex(bdays)
         age = np.busday_count(last_obs.fillna(bdays[0]).values.astype('datetime64[D]'), bdays.values.astype('datetime64[D]'))
         aligned[(age > item['stale']) | last_obs.isna()] = np.nan
-        zs[sid] = robust_z(aligned)
+        zs[sid] = robust_z(aligned, z_window)
         ws[sid] = item['w']
     z = pd.DataFrame(zs, index=bdays)
     w = pd.Series(ws)
@@ -175,7 +202,7 @@ def axis_score(spec, series, bdays, include):
     raw_score = z.fillna(0).mul(w, axis=1).sum(axis=1) / eff.replace(0, np.nan)
     raw_score[eff < MIN_EFF_WEIGHT * w.sum()] = np.nan
     # Rescale so ±0.25 means the same thing as in v3: divide by a causal 3-year std.
-    scale = raw_score.rolling(Z_WINDOW, min_periods=Z_MIN).std()
+    scale = _window(raw_score, z_window).std()
     score = (raw_score / scale).ewm(span=EWMA_SPAN, ignore_na=True).mean()
     score[raw_score.isna()] = np.nan
     return score, eff, z
@@ -478,6 +505,60 @@ def selftest():
     print(markdown(result))
 
 
+def compare(start, monthly_path):
+    """Score every G variant against the same L axis and monthly reference."""
+    raw, errors = load_all(start)
+    series, used = inputs(raw, start)
+    end = pd.Timestamp.today().normalize()
+    bdays = pd.bdate_range(start, end)
+    ls, _, _ = axis_score(L_SPEC, series, bdays, set(L_SPEC))
+    ls_state = hysteresis(ls)
+    monthly_all = load_monthly(monthly_path)
+    out = {}
+    for name, v in G_VARIANTS.items():
+        include = set(v['spec']) - {'GDPNOW'}
+        gs, _, _ = axis_score(v['spec'], series, bdays, include, v['z_window'])
+        gs_state = hysteresis(gs)
+        regime = daily_regime(gs_state, ls_state)
+        first = max(gs.first_valid_index() or end, ls.first_valid_index() or end)
+        monthly = monthly_all.loc[first:]
+        periods = {}
+        for label, a, b in (*PERIODS, TRAIN, TEST):
+            lo = pd.Timestamp(a) if a else None
+            hi = pd.Timestamp(b) if b else None
+            if hi is not None and hi < first:
+                continue
+            periods[label] = evaluate(monthly, gs_state, ls_state, gs, ls, regime, lo, hi)
+        last = gs.last_valid_index()
+        out[name] = {'first_scored_day': first.strftime('%Y-%m-%d'), 'periods': periods,
+                     'latest': {'date': last.strftime('%Y-%m-%d'), 'G': round(float(gs[last]), 3),
+                                'regime': regime.get(last)}}
+    return {'inputs': used, 'source_errors': errors, 'variants': out,
+            'rule': '학습 구간 G 방향 일치율 최고안 선택, 단 학습 구간 오경보율이 A안 이하일 것'}
+
+
+def compare_markdown(result):
+    rows = ['| 안 | 구간 | 월수 | G 방향 | L 방향 | 사분면 | 사분면(부호) | 전환 | 사전 포착 | 선행 중앙값(주) | G축 선행(주) | 일간 전환 | 오경보율 |',
+            '|---|---|---|---|---|---|---|---|---|---|---|---|---|']
+    for name, v in result['variants'].items():
+        for label, r in v['periods'].items():
+            a = r['agreement']
+            rows.append('| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
+                name, label, r['months'], fmt(a['G']['rate'], '%'), fmt(a['L']['rate'], '%'),
+                fmt(a['Q']['rate'], '%'), fmt(a['Q_any']['rate'], '%'), r['regime_lead']['events'],
+                fmt(r['regime_lead']['caught_before_announce'], '%'), fmt(r['regime_lead']['median_lead_weeks']),
+                fmt(r['axis_lead']['G']['median_lead_weeks']), r['false_alarm']['daily_switches'],
+                fmt(r['false_alarm']['false_alarm_rate'], '%')))
+    base = result['variants'][next(iter(result['variants']))]['periods'][TRAIN[0]]['false_alarm']['false_alarm_rate']
+    ok = {n: v['periods'][TRAIN[0]] for n, v in result['variants'].items()
+          if (v['periods'][TRAIN[0]]['false_alarm']['false_alarm_rate'] or 0) <= (base or 0)}
+    pick = max(ok, key=lambda n: ok[n]['agreement']['G']['rate'] or 0) if ok else None
+    rows.append('')
+    rows.append(f'선택 규칙(사전 고정): {result["rule"]}')
+    rows.append(f'규칙상 선택: {pick}')
+    return '\n'.join(rows)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--start', default='2003-01-01')
@@ -486,9 +567,19 @@ def main():
                     help='FRED GDPNOW is one final nowcast per quarter, not the daily path; off by default')
     ap.add_argument('--json')
     ap.add_argument('--selftest', action='store_true')
+    ap.add_argument('--compare', action='store_true', help='compare the G-axis variants')
     args = ap.parse_args()
     if args.selftest:
         selftest()
+        return
+    if args.compare:
+        result = compare(args.start, args.monthly)
+        if args.json:
+            Path(args.json).write_text(json.dumps(result, ensure_ascii=False, indent=1, default=str), encoding='utf-8')
+        print(json.dumps({'inputs': result['inputs'], 'source_errors': result['source_errors'],
+                          'latest': {k: v['latest'] for k, v in result['variants'].items()}},
+                         ensure_ascii=False, indent=1))
+        print(compare_markdown(result))
         return
     result = run(args.start, args.monthly, args.with_gdpnow)
     if args.json:

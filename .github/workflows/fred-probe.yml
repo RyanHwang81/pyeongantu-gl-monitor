@@ -17,7 +17,7 @@ on:
   # main을 건드리지 않고 시험하려고, 작업 브랜치에서 이 파일이 바뀌어 푸시될 때만 한 번 실행합니다.
   push:
     branches: [claude/dreamy-noether-8apapo]
-    paths: [.github/workflows/fred-probe.yml]
+    paths: [.github/workflows/fred-probe.yml, scripts/daily_radar_backtest.py]
 
 permissions:
   contents: read
@@ -59,12 +59,12 @@ jobs:
           mkdir -p radar-out
           export GL_CACHE="$PWD/radar-out/cache" && mkdir -p "$GL_CACHE"
           start=$(date +%s)
-          python scripts/daily_radar_backtest.py --json radar-out/radar.json | tee radar-out/radar.md
+          python scripts/daily_radar_backtest.py --compare --json radar-out/radar.json | tee radar-out/radar.md
           echo "elapsed: $(( $(date +%s) - start ))s" | tee -a radar-out/radar.md
           {
-            echo "## 일간 레이더 백테스트"
+            echo "## 일간 레이더 G축 변형 비교"
             echo
-            grep '^|' radar-out/radar.md
+            grep -E '^\||^선택 규칙|^규칙상' radar-out/radar.md
           } >> "$GITHUB_STEP_SUMMARY"
           # FRED 원자료 캐시는 재배포 문제를 피하려고 아티팩트에서 뺍니다.
           rm -rf "$GL_CACHE"
@@ -76,3 +76,25 @@ jobs:
           name: daily-radar-backtest
           path: radar-out/
           retention-days: 14
+
+  # 같은 코드를 ubuntu에서 빌드해 v3 도입 커밋(0ba6ffb)의 dist와 비교합니다. 커밋·배포는 하지 않습니다.
+  build-check:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements.txt
+      - name: ubuntu 빌드
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python build.py --out dist
+      - name: v3 커밋 dist와 비교
+        run: |
+          git show 0ba6ffb:dist/gl_data.json > /tmp/v3_gl_data.json
+          python scripts/compare_dist.py /tmp/v3_gl_data.json dist/gl_data.json
