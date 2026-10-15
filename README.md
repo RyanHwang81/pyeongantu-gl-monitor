@@ -40,7 +40,7 @@ GitHub Actions (매월 1일·16일; 수동 실행 시도 동일)
 ### 로컬 실행
 
 ```bash
-pip install pandas numpy certifi
+pip install -r requirements.txt
 python3 build.py --out dist
 ```
 
@@ -56,7 +56,7 @@ python3 build.py --out dist
 1. 이 폴더의 파일을 저장소 루트에 커밋 (`build.py`, `gl_template.html`, `README.md`)
 2. `update.yml` 을 `.github/workflows/update.yml` 경로로 저장
 3. 저장소 **Settings → Pages → Source** 를 `GitHub Actions` 로 설정
-4. build job은 `self-hosted, macOS, gl-monitor` runner에서 실행합니다. FRED graph CSV는 해당 runner에서도 timeout 되었으므로, 저장소 Actions secret `FRED_API_KEY`를 등록해 FRED 공식 API로 수집합니다. 수집 경로만 API이며, 키는 로그나 산출물에 넣지 않습니다.
+4. build job은 GitHub 호스티드 `ubuntu-latest` runner에서 실행합니다(의존성은 `requirements.txt`). FRED graph CSV는 runner에서 timeout 되므로, 저장소 Actions secret `FRED_API_KEY`를 등록해 FRED 공식 API로 수집합니다. 키는 로그나 산출물에 넣지 않습니다. 맥미니 `self-hosted, macOS, gl-monitor` runner는 예비로, 수동 실행 시 `runner: mac`을 고르면 사용합니다. 정기·수동 실행이 실패하면 "GL 자동 갱신 실패" 이슈가 열립니다. main 대상 PR에서는 빌드·검증만 하고 커밋·배포는 하지 않습니다.
 5. **Actions** 탭에서 `Run workflow` 로 첫 실행 → 이후 매월 1일·16일 09:00 UTC 자동 반복
 
 공개 URL은 `https://ryanhwang81.github.io/pyeongantu-gl-monitor/` 이며 `index.html`(공개용)만 iframe/블로그에 노출합니다.  
