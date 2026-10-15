@@ -224,7 +224,8 @@ class BookDashboardContractTests(unittest.TestCase):
         self.assertIn("function recentAxisRanges(points)", template)
         self.assertNotIn("function equalUnitRanges(points)", template)
         self.assertIn("ranges:{gx:[-3,3],ly:[-3,3]}", template)
-        self.assertIn("중립·전환 ±0.15", template)
+        self.assertIn("이탈 ±0.10 · 진입 ±0.25", template)
+        self.assertIn("기본 비중 유지", template)
         self.assertIn('"gl-height"', template)
 
     def test_quant_reference_is_visible_without_click(self):

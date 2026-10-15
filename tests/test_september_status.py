@@ -96,7 +96,8 @@ class SeptemberStatusTests(unittest.TestCase):
         data["months"] = [m for m in data["months"] if m["d"] < "2026-09"]
         data["meta"]["latest"] = data["months"][-1]["d"]
         # Keep the v2 comparison metadata in the same fixed historical scenario.
-        data["meta"]["v1_compare"] = [m for m in data["meta"].get("v1_compare", []) if m["d"] < "2026-09"]
+        for key in ("v1_compare", "v2_compare", "v2_history", "v2_latest"):
+            data["meta"][key] = [m for m in data["meta"].get(key) or [] if m.get("d", "") < "2026-09"]
         data["meta"]["pending_observations"] = {
             "month": "2026-09", "as_of": "2026-09-25", "status": "month_in_progress",
             "growth": {"available": 1, "total": 5, "weight": .10},

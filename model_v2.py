@@ -26,14 +26,66 @@ def tail_signal(s, index, limit=3):
     return values, actual.notna(), carried
 
 
-def observed_z(values, observed):
-    """Freeze carry-month parameters at the preceding actual observation's window."""
+MAD_SCALE=1.4826
+
+
+def _robust_center_scale(samples):
+    """Median and MAD inside the same window. A second rolling pass on deviations
+    would start only after the median exists and would drop short samples to NaN.
+    """
+    values=samples.to_numpy(dtype=float)
+    center=np.full(len(values), np.nan)
+    scale=np.full(len(values), np.nan)
+    for i in range(len(values)):
+        start=max(0, i+1-WINDOW)
+        window=values[start:i+1]
+        finite=window[np.isfinite(window)]
+        if finite.size<MIN_OBS:
+            continue
+        med=float(np.median(finite))
+        mad=float(np.median(np.abs(finite-med)))*MAD_SCALE
+        center[i]=med
+        if mad>1e-8:
+            scale[i]=mad
+    return pd.Series(center, index=samples.index), pd.Series(scale, index=samples.index)
+
+
+def observed_z(values, observed, method='classical'):
+    """Freeze carry-month parameters at the preceding actual observation's window.
+
+    method='classical' is the v2 mean/standard-deviation z-score.
+    method='robust' is a median/MAD z-score, scaled so a normal distribution
+    matches the classical standard deviation.
+    """
     samples=values.where(observed)
-    mean=samples.rolling(WINDOW,min_periods=MIN_OBS).mean()
-    sd=samples.rolling(WINDOW,min_periods=MIN_OBS).std()
-    mean=mean.where(observed).ffill()
-    sd=sd.where(observed).ffill()
-    return ((values-mean)/sd).clip(-CLAMP,CLAMP)
+    if method=='robust':
+        center,scale=_robust_center_scale(samples)
+    elif method=='classical':
+        center=samples.rolling(WINDOW,min_periods=MIN_OBS).mean()
+        scale=samples.rolling(WINDOW,min_periods=MIN_OBS).std()
+    else:
+        raise ValueError('unknown z method '+str(method))
+    center=center.where(observed).ffill()
+    scale=scale.where(observed).ffill()
+    return ((values-center)/scale).clip(-CLAMP,CLAMP)
+
+
+def theoretical_scale(valid, weights, correlation=0.0):
+    """Scale of a weighted average of unit-variance indicators.
+
+    Independence gives sqrt(sum a_i^2). A common pairwise correlation ρ gives
+    sqrt((1-ρ) sum a_i^2 + ρ). ρ is a constant or a causal series, not a
+    rolling standard deviation of the composite.
+    """
+    eff=valid.mul(weights,axis=1).sum(axis=1)
+    a2=valid.mul(weights**2,axis=1).sum(axis=1)/(eff**2)
+    if np.isscalar(correlation):
+        rho=float(correlation)
+        var=(1-rho)*a2+rho
+    else:
+        rho=pd.Series(correlation,index=valid.index).astype(float).clip(0.0,0.95).fillna(0.0)
+        var=(1-rho)*a2+rho
+    return np.sqrt(var.clip(lower=1e-12)).where(eff>0)
 
 
 @dataclass
@@ -44,9 +96,10 @@ class CompositeResult:
     observed_ratio: pd.Series
     carried: pd.DataFrame
     effective_weight: pd.Series
+    unit: pd.Series | None = None
 
 
-def composite(comps,index=None):
+def composite(comps,index=None,carry_limit=3,z_method='classical',rescale=False,correlation=0.0):
     if index is None:
         dates=[d for c in comps.values() for d in c['t'].index]
         if not dates:raise ValueError('No model history')
@@ -54,8 +107,8 @@ def composite(comps,index=None):
     weights=pd.Series({k:c['w'] for k,c in comps.items()})
     zs,observed,carried,universe={},{},{},{}
     for key,c in comps.items():
-        values,seen,carry=tail_signal(c['t'],index)
-        zs[key]=observed_z(values,seen)
+        values,seen,carry=tail_signal(c['t'],index,limit=carry_limit)
+        zs[key]=observed_z(values,seen,method=z_method)
         observed[key]=seen
         carried[key]=carry
         start=c.get('available_from',c['t'].first_valid_index())
@@ -69,10 +122,16 @@ def composite(comps,index=None):
     raw=zdf.mul(weights,axis=1).sum(axis=1,min_count=1)/effw
     raw=raw.where(effw>=MIN_EFF_W-1e-10)
     carried=pd.DataFrame(carried,index=index)
-    # Partial carried composites are also excluded from second-layer statistics.
-    score=observed_z(raw,raw.notna()&carried.eq('').all(axis=1))
-    score=score.ewm(span=3,min_periods=1).mean().where(score.notna())
-    return CompositeResult(zdf,score,raw,ratio,carried,effw)
+    unit=None
+    if rescale:
+        scale=theoretical_scale(zdf.notna(),weights,correlation)
+        unit=(raw/scale).clip(-CLAMP,CLAMP)
+        level=unit
+    else:
+        # Partial carried composites are also excluded from second-layer statistics.
+        level=observed_z(raw,raw.notna()&carried.eq('').all(axis=1))
+    score=level.ewm(span=3,min_periods=1).mean().where(level.notna())
+    return CompositeResult(zdf,score,raw,ratio,carried,effw,unit)
 
 
 def composite_v1(comps):

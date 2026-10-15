@@ -21,13 +21,15 @@ import ssl
 import certifi
 import pandas as pd
 import numpy as np
-from model_v2 import composite, composite_v1, roll_z, row_flags, net_liquidity, expanding_percentile
+from model_v2 import composite, composite_v1, row_flags, net_liquidity, expanding_percentile, quadrant
+import model_v3 as v3
 
 WINDOW, MIN_OBS, CLAMP, MIN_EFF_W = 216, 48, 3.0, 0.4
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
 SPX_URL  = "https://raw.githubusercontent.com/datasets/s-and-p-500/main/data/data.csv"
 GOLD_URL = "https://raw.githubusercontent.com/datasets/gold-prices/main/data/monthly.csv"
-UA = {"User-Agent": "Mozilla/5.0 (compatible; pyeongantoo-gl-builder/1.0)"}
+# A Mozilla-prefixed agent is stalled by the FRED edge. A plain product token returns the CSV.
+UA = {"User-Agent": "pyeongantoo-gl-builder/1.0"}
 CACHE = os.environ.get("GL_CACHE", "")   # 값이 있으면 해당 폴더의 CSV를 우선 사용
 BOOK_DATA = Path(__file__).with_name("book_dashboard.json")
 BOOK_INDICATORS = {
@@ -249,10 +251,18 @@ def pending_observations(raw, latest_month, today, weights=None):
             **coverage, "observed": observed}
 
 def recalculation_note(prior, current):
-    if prior and prior.get('meta',{}).get('model_version')!='2.0' and current.get('meta',{}).get('model_version')=='2.0':
+    prior_ver=(prior or {}).get('meta',{}).get('model_version')
+    current_ver=current.get('meta',{}).get('model_version')
+    if prior and prior_ver!='2.0' and current_ver=='2.0':
         old,new=prior['months'][-1],current['months'][-1]
         return {'month':new['d'],'scope':'all_history','reason':'model_v1_to_v2',
                 'before':{k:old[k] for k in ('g','l','r')},'after':{k:new[k] for k in ('g','l','r')},
+                'newly_available':[]}
+    if prior and prior_ver=='2.0' and current_ver=='3.0' and prior.get('months') and current.get('months'):
+        old,new=prior['months'][-1],current['months'][-1]
+        return {'month':new['d'],'scope':'all_history','reason':'model_v2_to_v3',
+                'before':{k:old[k] for k in ('g','l','r') if k in old},
+                'after':{k:new[k] for k in ('g','l','r')},
                 'newly_available':[]}
     if not prior or not prior.get("months") or not current["months"]:
         return None
@@ -276,7 +286,7 @@ def recalculation_note(prior, current):
 def to_monthly(s):
     return s.resample("MS").mean()
 
-def provisional_point(axes, raw, pending):
+def provisional_point(axes, raw, pending, carry_limit=3, z_method='classical', rescale=False, correlation=None):
     """Separate current-month estimate using the monthly history's carry/statistics rules."""
     if not pending:return None
     month=pd.Timestamp(pending['month']+'-01')
@@ -284,11 +294,14 @@ def provisional_point(axes, raw, pending):
     result={'month':pending['month'],'as_of':pending['as_of'],
             'status':'provisional_carry_forward','p':True,'c':False,'coverage':{},'inputs':{}}
     values={}
+    correlation=correlation or {}
     for axis,components in axes.items():
         sliced={k:{**c,'t':c['t'].loc[:month]} for k,c in components.items()}
         dates=[d for c in sliced.values() for d in c['t'].index]
         if not dates:return None
-        result_axis=composite(sliced,pd.date_range(min(dates),month,freq='MS'))
+        result_axis=composite(sliced,pd.date_range(min(dates),month,freq='MS'),
+                              carry_limit=carry_limit,z_method=z_method,rescale=rescale,
+                              correlation=correlation.get(axis,0.0))
         if pd.isna(result_axis.score.loc[month]):return None
         provenance={}
         for sid,c in sliced.items():
@@ -309,7 +322,8 @@ def provisional_point(axes, raw, pending):
         key='g' if axis=='growth' else 'l'
         result[key]=round(float(result_axis.score.loc[month]),3)
         result[key+'r']=round(float(result_axis.raw.loc[month]),3)
-        percentile=expanding_percentile(result_axis.raw).loc[month]
+        level=result_axis.unit if result_axis.unit is not None else result_axis.raw
+        percentile=expanding_percentile(level).loc[month]
         result[key+'p']=round(float(percentile))
         result[key+'z']={sid:round(float(z),2) for sid,z in result_axis.z.loc[month].items() if pd.notna(z)}
         values[key]=result[key]
@@ -318,12 +332,6 @@ def provisional_point(axes, raw, pending):
     result['b']=(abs(result['g'])<.15 or abs(result['l'])<.15) and not result['n']
     result['x']=result['g']*result['gr']<0 or result['l']*result['lr']<0
     return result
-
-def quadrant(g, l):
-    if g >= 0 and l >= 0: return "expansion"
-    if g < 0 and l >= 0:  return "liquidity"
-    if g < 0 and l < 0:   return "defense"
-    return "adjustment"
 
 def build_data():
     log = lambda *a: print("[data]", *a, flush=True)
@@ -361,7 +369,8 @@ def build_data():
         'UNRATE':{'t':-(unrate-unrate.shift(12)),'w':.14,'label':'실업률 12M 변화 (역)'},
         'ICSA':{'t':-yoy(icsa),'w':.10,'label':'신규실업수당청구 YoY (역)'},
     }
-    L_COMP={
+    # v2 keeps spread levels inside L. v3 converts those two inputs to 6-month changes.
+    L_V2={
         'M2SL':{'t':yoy(m2sl),'w':.18,'label':'M2 YoY'},
         'DGS2':{'t':-(monthly['DGS2']-monthly['DGS2'].shift(3)),'w':.18,'label':'2년물 금리 3M 변화 (역)'},
         'NETLIQ':{'t':yoy(netliq),'w':.15,'label':'순유동성(연준자산−TGA−역레포) YoY'},
@@ -370,6 +379,8 @@ def build_data():
         'BAA10YM':{'t':-baa10y,'w':.12,'label':'Baa-10Y 신용스프레드 (역)'},
         'TOTALSL':{'t':yoy(totalsl),'w':.10,'label':'소비자신용 YoY'},
     }
+    L_COMP=v3.change_liquidity(monthly, netliq)
+    FC_COMP=v3.financial_conditions(monthly)
     # Freeze v1's implicit pct_change fill behavior for the comparison only.
     old_yoy=lambda x:x.ffill().pct_change(12,fill_method=None)*100
     G_V1={k:{**v,'t':old_yoy(monthly[k])*(-1 if k=='ICSA' else 1)} if k!='UNRATE' else dict(v) for k,v in G_COMP.items()}
@@ -379,29 +390,50 @@ def build_data():
         'TOTALSL':{'t':old_yoy(totalsl),'w':.14},'BAA10YM':{'t':-baa10y,'w':.14},
         'WALCL':{'t':old_yoy(walcl),'w':.14},
     }
-    for comps in (G_COMP,L_COMP):
+    for comps in (G_COMP,L_V2,L_COMP,FC_COMP):
         for key,c in comps.items():c['available_from']=raw[key].first_valid_index()
     log("G/L 점수 산출...")
-    dates=[d for c in (*G_COMP.values(),*L_COMP.values()) for d in c['t'].index]
+    dates=[d for c in (*G_COMP.values(),*L_COMP.values(),*L_V2.values()) for d in c['t'].index]
     index=pd.date_range(min(dates),pd.Timestamp(date.today()).replace(day=1),freq='MS')
-    ga,la=composite(G_COMP,index),composite(L_COMP,index)
+    def scored(comps, method):
+        draft=v3.score_composite(comps, index, method, 0.0)
+        rho=v3.frozen_pairwise_rho(draft.z)
+        return v3.score_composite(comps, index, method, rho), rho
+    ga,rho_g=scored(G_COMP,'robust')
+    la,rho_l=scored(L_COMP,'robust')
+    g_classic,_=scored(G_COMP,'classical')
+    l_classic,_=scored(L_COMP,'classical')
+    fc_result,rho_fc=scored(FC_COMP,'robust')
+    ga_v2,la_v2=composite(G_COMP,index),composite(L_V2,index)
     Gz,Lz=ga.z,la.z
     df=pd.DataFrame({'G':ga.score,'L':la.score,'gr':ga.raw,'lr':la.raw,
-                     'owg':ga.observed_ratio,'owl':la.observed_ratio}).dropna()
+                     'owg':ga.observed_ratio,'owl':la.observed_ratio,
+                     'gc':g_classic.score,'lc':l_classic.score,
+                     'fc':fc_result.score,'fcr':fc_result.raw}).dropna(subset=['G','L','gr','lr','owg','owl'])
     df=df[(df.index>='1972-01-01')&(df.index<index[-1])]
     df=df[(df.owg>=.4-1e-10)&(df.owl>=.4-1e-10)]
     if df.empty:raise RuntimeError('Insufficient actual GL coverage')
-    gp,lp=expanding_percentile(ga.raw),expanding_percentile(la.raw)
-    flags=[];previous=None
-    for d,row in df.iterrows():
+    gp,lp=expanding_percentile(ga.unit),expanding_percentile(la.unit)
+    fcp=expanding_percentile(fc_result.unit)
+    df['gp'],df['lp']=gp.reindex(df.index),lp.reindex(df.index)
+    flags,axis_state=v3.classify(df)
+    v2=pd.DataFrame({'G':ga_v2.score,'L':la_v2.score,'gr':ga_v2.raw,'lr':la_v2.raw,
+                     'owg':ga_v2.observed_ratio,'owl':la_v2.observed_ratio}).dropna()
+    v2=v2[(v2.index>='1972-01-01')&(v2.index<index[-1])]
+    v2=v2[(v2.owg>=.4-1e-10)&(v2.owl>=.4-1e-10)]
+    v2_flags=[];previous=None
+    for d,row in v2.iterrows():
         flag=row_flags(row.G,row.L,row.gr,row.lr,row.owg,row.owl,previous)
-        flags.append(flag);previous=flag['r']
+        v2_flags.append(flag);previous=flag['r']
     Gz,Lz=Gz.reindex(df.index).round(2),Lz.reindex(df.index).round(2)
     _,v1g,_=composite_v1(G_V1);_,v1l,_=composite_v1(L_V1)
     v1=pd.DataFrame({'g':v1g,'l':v1l}).dropna()
     v1=v1[(v1.index>='1972-01-01')&(v1.index<index[-1])]
     compare=[{'d':d.strftime('%Y-%m'),'g':round(row.g,3),'l':round(row.l,3),
               'r':quadrant(row.g,row.l)} for d,row in v1.tail(36).iterrows()]
+    v2_history=[{'d':d.strftime('%Y-%m'),'g':round(row.G,3),'l':round(row.L,3),
+                 'r':flag['r'],'c':flag['c'],'n':flag['n'],'b':flag['b'],'p':flag['p']}
+                for (d,row),flag in zip(v2.iterrows(),v2_flags)]
 
     log("자산군 수익률 산출...")
     sp = pd.read_csv(io.StringIO(fetch(SPX_URL)))[["Date", "SP500"]].dropna()
@@ -426,13 +458,100 @@ def build_data():
         raw, df.index[-1].strftime("%Y-%m"), date.today(),
         {"growth": {k: v["w"] for k, v in G_COMP.items()},
          "liquidity": {k: v["w"] for k, v in L_COMP.items()}})
-    estimate = provisional_point({"growth": G_COMP, "liquidity": L_COMP}, raw, pending)
+    estimate = provisional_point(
+        {"growth": G_COMP, "liquidity": L_COMP}, raw, pending,
+        carry_limit=v3.CARRY_LIMIT, z_method='robust', rescale=True,
+        correlation={'growth': rho_g, 'liquidity': rho_l})
+    if estimate:
+        gs=v3.step_axis(estimate['g'], estimate.get('gp'), axis_state['g'])
+        ls=v3.step_axis(estimate['l'], estimate.get('lp'), axis_state['l'])
+        regime=None if gs==0 or ls==0 else quadrant(1 if gs>0 else -1, 1 if ls>0 else -1)
+        estimate.update(regime=regime, n=bool(gs==0 and ls==0), b=bool((gs==0)^(ls==0)),
+                        c=False, phase=v3.phase_of(gs, ls, None, None, regime),
+                        allocation=v3.REGIME_ASSETS[regime]['favor'] if regime else v3.NEUTRAL_ALLOCATION,
+                        ax={'g':int(gs),'l':int(ls)})
+    def _at(series, stamp):
+        ts=pd.Timestamp(stamp)
+        if ts not in series.index or pd.isna(series.loc[ts]): return None
+        return round(float(series.loc[ts]), 3)
+    def _share(mask):
+        return None if not len(mask) else round(float(mask.mean()), 3)
+    v2_l_std=la_v2.raw.rolling(216, min_periods=48).std()
+    classic_g=g_classic.score.reindex(df.index)
+    post=df.loc['2022':'2026']
+    pre=v2.loc['2010':'2019']
+    try:
+        nfci=to_monthly(fred('NFCI'))
+    except Exception:
+        nfci=None
+    nfci_diag={'available': nfci is not None}
+    if nfci is not None:
+        panel=pd.DataFrame({'L':df.L,'FC':df.fc,'easy':-nfci,'d6':-nfci.diff(6)}).loc['1990':'2019'].dropna()
+        def _corr(left, right):
+            value=left.corr(right)
+            return None if pd.isna(value) else round(float(value), 3)
+        nfci_diag.update(sample='1990-2019', n=int(len(panel)),
+                         l_change_corr_level=_corr(panel.L, panel.easy),
+                         l_change_corr_d6=_corr(panel.L, panel.d6),
+                         fc_level_corr=_corr(panel.FC, panel.easy))
+    regimes=[flag['regime'] for flag in flags]
+    diagnostics={
+        'z_method':'robust_mad',
+        'rescale':'theoretical_correlation',
+        'rho_frozen_2019':{
+            'g':_at(rho_g,'2019-12-01'),'l':_at(rho_l,'2019-12-01'),'fc':_at(rho_fc,'2019-12-01')},
+        'carry_limit':v3.CARRY_LIMIT,
+        'hysteresis':{'enter':v3.ENTER,'exit':v3.EXIT,'strong':v3.STRONG,'confirm_months':v3.CONFIRM_MONTHS},
+        'covid':{
+            'v2_l_second_stage_std_2019_12':_at(v2_l_std,'2019-12-01'),
+            'v2_l_second_stage_std_2026_06':_at(v2_l_std,'2026-06-01'),
+            'v2_both_abs_lt_0.15_2010_2019':_share((pre.G.abs()<0.15)&(pre.L.abs()<0.15)),
+            'v2_both_abs_lt_0.15_2022_2026':_share((v2.loc['2022':'2026'].G.abs()<0.15)&(v2.loc['2022':'2026'].L.abs()<0.15)),
+            'v3_classical_abs_g_lt_0.25_2022_2026':_share(classic_g.loc['2022':'2026'].abs()<0.25),
+            'v3_robust_abs_g_lt_0.25_2022_2026':_share(post.G.abs()<0.25),
+        },
+        'nfci':nfci_diag,
+        'confirmation':{
+            'months':len(flags),
+            'neutral':sum(flag['n'] for flag in flags),
+            'confirmed':sum(flag['c'] for flag in flags),
+            'whipsaw_reversals':v3.whipsaw_count(df.index, regimes, [flag['c'] for flag in flags]),
+            'transitions':v3.transition_matrix(df.index, regimes),
+        },
+    }
+    def _month_row(d, row, flag):
+        return {"d":d.strftime('%Y-%m'),"g":round(row.G,3),"l":round(row.L,3),**flag,
+                "gr":round(row.gr,3),"lr":round(row.lr,3),
+                "gp":None if pd.isna(row.gp) else int(round(float(row.gp))),
+                "lp":None if pd.isna(row.lp) else int(round(float(row.lp))),
+                "gc":None if pd.isna(row.gc) else round(float(row.gc),3),
+                "lc":None if pd.isna(row.lc) else round(float(row.lc),3),
+                "fc":None if pd.isna(row.fc) else round(float(row.fc),3),
+                "fcr":None if pd.isna(row.fcr) else round(float(row.fcr),3),
+                "fcp":None if d not in fcp.index or pd.isna(fcp.loc[d]) else int(round(float(fcp.loc[d]))),
+                "cf":{k:used for result in (ga,la) for k,used in result.carried.loc[d].items() if used},
+                "gz":{k:nn(Gz.loc[d,k]) for k in Gz.columns},"lz":{k:nn(Lz.loc[d,k]) for k in Lz.columns},
+                "a":{k:nn(ret12[k].loc[d]) for k in ret12}}
+    months=[_month_row(d,row,flag) for (d,row),flag in zip(df.iterrows(),flags)]
     out = {
         "meta": {
             "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d"),
-            "model_version":"2.0",
-            "model_changes":["Transformed tail carry up to 3 months; actual-only statistics and available-universe coverage", "Neutral/boundary/provisional months cannot confirm a regime", "DGS2, net liquidity and broad dollar replace lagging liquidity inputs", "Raw composites and causal expanding percentiles accompany relative scores"],
+            "model_version":"3.0",
+            "v2_model_version":"2.0",
+            "model_changes":[
+                "Single-stage robust median/MAD z-score with theoretical correlation rescaling; classical single-stage kept as gc/lc",
+                "L uses 6-month changes for T10Y3M and BAA10YM; level spreads move to a separate financial-conditions score",
+                "Regime is hysteresis plus 3-month direction; neutral months reset confirmation and carry no quadrant",
+                "Carry of transformed signals shortened from 3 months to 2",
+            ],
+            "summary_ko":"v3는 216개월 재표준화를 없애고, 코로나 스파이크에 덜 민감한 중위수/MAD로 점수를 만듭니다. 유동성 축은 변화율만 쓰고, 스프레드 수준은 금융여건으로 따로 둡니다. 중립 달은 사분면을 주지 않습니다.",
+            "neutral_allocation":v3.NEUTRAL_ALLOCATION,
+            "regime_assets":v3.REGIME_ASSETS,
             "source_errors":source_errors,"v1_compare":compare,
+            "v2_compare":v2_history[-36:],
+            "v2_history":v2_history,
+            "v2_latest":[row for row in v2_history if row['d']>='2026-07'],
+            "diagnostics":diagnostics,
             "latest_liquidity_components":[{'id':k,'z':round(float(la.z.loc[df.index[-1],k]),6) if pd.notna(la.z.loc[df.index[-1],k]) else None,
                 'weight':v['w'],'contribution':round(float(la.z.loc[df.index[-1],k])*v['w'],6) if pd.notna(la.z.loc[df.index[-1],k]) else None,
                 'carried_from':la.carried.loc[df.index[-1],k] or None} for k,v in L_COMP.items()],
@@ -445,19 +564,15 @@ def build_data():
             "l_weights": {k: v["w"] for k, v in L_COMP.items()},
             "g_labels": {k: v["label"] for k, v in G_COMP.items()},
             "l_labels": {k: v["label"] for k, v in L_COMP.items()},
+            "fc_labels": {k: v["label"] for k, v in FC_COMP.items()},
+            "fc_weights": {k: v["w"] for k, v in FC_COMP.items()},
             "asset_labels": {k: v[1] for k, v in ASSETS.items()},
         },
-        "months": [
-            {"d":d.strftime('%Y-%m'),"g":round(row.G,3),"l":round(row.L,3),**flag,
-             "gr":round(row.gr,3),"lr":round(row.lr,3),"gp":round(float(gp.loc[d])),"lp":round(float(lp.loc[d])),
-             "cf":{k:used for result in (ga,la) for k,used in result.carried.loc[d].items() if used},
-             "gz":{k:nn(Gz.loc[d,k]) for k in Gz.columns},"lz":{k:nn(Lz.loc[d,k]) for k in Lz.columns},
-             "a":{k:nn(ret12[k].loc[d]) for k in ret12}}
-            for (d,row),flag in zip(df.iterrows(),flags)
-        ],
+        "months": months,
     }
+    shown=flags[-1]['regime'] or 'neutral'
     log(f"완료 — {len(df)} months, latest {out['meta']['latest']}, "
-        f"G={df.G.iloc[-1]:+.3f} L={df.L.iloc[-1]:+.3f} ({flags[-1]['r']})")
+        f"G={df.G.iloc[-1]:+.3f} L={df.L.iloc[-1]:+.3f} ({shown})")
     return out
 
 def render(template, data, book_data, public, language='ko'):

@@ -239,7 +239,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
     <div class="logo">平</div>
     <div>
       <h1>평안투 <span style="color:var(--brand);font-weight:900">GL 레짐 모니터</span></h1>
-      <div class="sub">성장 × 유동성 · FRED 정량 모델 v2.0</div>
+      <div class="sub">성장 × 유동성 · FRED 정량 모델 v3.0</div>
     </div>
   </div>
   <div class="hdr-right">
@@ -252,7 +252,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
   <h2>미국 매크로 정량 보조모델</h2>
   <p>마지막 계산월의 발표분 반영점과 이번 달 월중 잠정점을 구분합니다. 과거 말일 당시의 데이터 재현은 아닙니다.</p>
 </div>
-<p class="score-footnote">G·L 점수는 최근 18년 대비 상대 위치입니다. 원합성치는 구성 지표 z의 가중평균이며 경제적 절대 수준과 다릅니다.</p>
+<p class="score-footnote">G·L은 중위수와 MAD로 구한 지표 z를 한 번만 합친 뒤, 상관을 반영한 이론 분산으로 맞춘 점수입니다. 216개월 재표준화는 하지 않습니다. 원합성치는 경제적 절대 수준이 아닙니다.</p>
 <div class="provisional-pair">
   <div class="point-card"><div class="point-title" id="last-month-label">마지막 계산월</div><div class="point-value" id="last-month-values">—</div><div class="point-note">현재까지 발표된 해당 월 지표 반영 · 당시 시점 재현 아님</div></div>
   <div class="point-card provisional" id="provisional-card" hidden><div class="point-title" id="provisional-title">월중 잠정 추정점 / Provisional</div><div class="point-value" id="provisional-values">—</div><div class="point-note" id="provisional-summary">—</div></div>
@@ -267,6 +267,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 </aside>
 
 <p class="point-note" id="monthly-coverage"></p>
+<p class="point-note" id="v2-compare-note"></p>
 <div class="kpis">
   <div class="kpi regime-kpi">
     <div class="regime-dot" id="kpi-regime-dot"></div>
@@ -371,13 +372,13 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
 <!--METHOD_START-->
 <div class="method">
   <div class="sec-title">방법론 · G/L 점수 산식</div>
-  <div class="sec-sub">v2.0 · 이월 착시, 원점 인접, 후행 지표, 상대 위치를 구분합니다. 점수는 최근 18년 대비 상대 위치입니다. 원합성치(지표 z의 가중평균)와 1972년 이후 장기 백분위를 함께 표시합니다.</div>
+  <div class="sec-sub">v3.0 · 단일 단계 정규화, 변화율 유동성, 방향이 포함된 레짐. v2 점수는 비교용으로 남깁니다. 발표된 개정 자료를 쓰므로 당시 빈티지 재현은 아닙니다.</div>
 
   <div class="method-grid">
     <div class="m-card">
       <h3><i></i>Growth (G) — 실물 성장 모멘텀</h3>
-      <div class="formula">G_raw(t) = Σ wᵢ·zᵢ(t) / Σ wᵢ (결측 시 가용 가중치로 재정규화)</div>
-      <div class="formula">G(t) = EMA₃[ Z₂₁₆( G_raw ) ],  clamp ±3.0</div>
+      <div class="formula">zᵢ = clamp( (xᵢ − median₂₁₆) / (1.4826·MAD₂₁₆) , −3, +3 )</div>
+      <div class="formula">G(t) = EMA₃[ clamp( G_raw / σ(w, ρ) , −3, +3 ) ]</div>
       <table>
         <tr><th>지표</th><th>변환</th><th style="text-align:right">가중치</th></tr>
         <tr><td>PERMIT 건축허가</td><td>YoY %</td><td class="num">28%</td></tr>
@@ -389,29 +390,30 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
     </div>
     <div class="m-card">
       <h3><i></i>Liquidity (L) — 금융환경 · 유동성</h3>
-      <div class="formula">L_raw(t) = Σ wᵢ·zᵢ(t) / Σ wᵢ (결측 시 가용 가중치로 재정규화)</div>
-      <div class="formula">L(t) = EMA₃[ Z₂₁₆( L_raw ) ],  clamp ±3.0</div>
+      <div class="formula">σ(w, ρ) = √( (1−ρ)·Σ aᵢ² + ρ ),  aᵢ = wᵢ / Σ w</div>
+      <div class="formula">L(t) = EMA₃[ clamp( L_raw / σ(w, ρ) , −3, +3 ) ]</div>
       <table>
         <tr><th>지표</th><th>변환</th><th style="text-align:right">가중치</th></tr>
         <tr><td>M2SL 통화량</td><td>YoY %</td><td class="num">18%</td></tr>
         <tr><td>DGS2 2년물 금리</td><td>3M 변화 · 역방향</td><td class="num">18%</td></tr>
         <tr><td>NETLIQ 순유동성</td><td>YoY %</td><td class="num">15%</td></tr>
         <tr><td>DTWEXBGS 광의 달러지수</td><td>YoY % · 역방향</td><td class="num">15%</td></tr>
-        <tr><td>T10Y3M 기간스프레드</td><td>수준 (월평균)</td><td class="num">12%</td></tr>
-        <tr><td>Baa−10Y 신용스프레드</td><td>수준 · 역방향</td><td class="num">12%</td></tr>
+        <tr><td>T10Y3M 기간스프레드</td><td>6개월 변화</td><td class="num">12%</td></tr>
+        <tr><td>Baa−10Y 신용스프레드</td><td>6개월 변화 · 역방향</td><td class="num">12%</td></tr>
         <tr><td>TOTALSL 소비자신용</td><td>YoY %</td><td class="num">10%</td></tr>
       </table>
     </div>
     <div class="m-card">
       <h3><i></i>표준화 · 레짐 판정 규칙</h3>
-      <div class="formula">z = clamp( (x − μ₂₁₆) / σ₂₁₆ , −3, +3 ),  최소 48개월 확보 시 산출</div>
+      <div class="formula">ρ는 1985년 이후 쌍별 상관의 확장 평균이며 2019-12에 고정합니다. 고전 평균/표준편차 점수는 gc·lc로 남깁니다.</div>
       <ul class="impr">
-        <li>미발표 끝단의 변환 신호만 최대 3개월 이월합니다. 중간 결측과 4개월 이상 지난 신호는 채우지 않습니다. 지표와 합성치의 평균·표준편차에는 이월값을 넣지 않습니다.</li>
-        <li>실측 비중은 첫 관측 이후 가용 유니버스의 가중치가 분모입니다. G/L 모두 80% 이상이면 확정 계산 행, 어느 축이든 40~80%이면 잠정, 40% 미만이면 월간 역사에서 제외합니다. 유효 z 가중치도 0.4 이상이어야 합니다.</li>
-        <li>NETLIQ = 월평균 WALCL − 월평균 WTREGEN − 월평균 RRPONTSYD×1000 (백만 달러). 이 RRP 시계열 시작 이전은 0으로 가정하며 제도 자체의 부재를 뜻하지 않습니다.</li>
-        <li>4분면: 확장 G+/L+ · 유동성 G−/L+ · 조정 G+/L− · 방어 G−/L−</li>
-        <li><b>확정 규칙(히스테리시스)</b>: 동일 4분면 2개월 연속 지속, 또는 두 축 모두 |0.25| 초과 시 "확정"; 중립·경계·잠정이면 확정하지 않습니다</li>
-        <li>두 축 모두 |0.15| 미만이면 중립, 한 축만 원점 인접이면 경계입니다. 경계는 지속을 끊지 않고 포함 여부를 표시합니다. 잠정 행은 지속·연간 평균·성과 자산 집계에서 제외합니다.</li>
+        <li>미발표 끝단의 변환 신호만 최대 2개월 이월합니다. 중간 결측은 채우지 않고, 이월값은 중위수·MAD에 넣지 않습니다.</li>
+        <li>2020–21 스파이크가 216개월 표준편차에 남아 2022년 이후 점수를 0 근처로 눌렀습니다. v3 본점수는 중위수/MAD입니다. 고전 단일 단계 점수는 비교용입니다.</li>
+        <li>기간스프레드와 신용스프레드의 수준은 L에 섞지 않습니다. 6개월 변화만 L에 넣고, 수준은 금융여건(FC)으로 따로 계산합니다. FC가 NFCI와 맞는지 진단에 적습니다.</li>
+        <li>축은 +0.25에서 진입하고 +0.10 안쪽으로 들어와야 이탈합니다. 백분위 20/80도 진입 조건으로 씁니다. 두 축이 모두 벗어나야 사분면이 생깁니다.</li>
+        <li><b>확정</b>: 같은 사분면이 최종 월 기준으로 2개월 연속이거나, 두 축 모두 |0.50| 이상인 강신호 1개월. 중립 달은 연속 횟수를 지우며, 그 달의 부호로 직전 확정 사분면을 바꾸지 않습니다. 경계 달은 횟수를 유지만 합니다.</li>
+        <li>3개월 변화 dG·dL로 초기 회복(성장은 아직 음수, 방향은 개선)과 확장 후반을 구분합니다. 중립 달의 자산 안내는 기본 비중 유지입니다.</li>
+        <li>실측 비중 80% 미만은 잠정 행입니다. 40% 미만은 월간 역사에서 제외합니다. 잠정 행은 확정·연간 평균·성과 순위에 넣지 않습니다.</li>
       </ul>
     </div>
     <div class="m-card">
@@ -420,12 +422,13 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
         <li><b>자산군 6종</b> — 미국주식(S&P500), 나스닥, 금, 원유(WTI), 미국채 10Y, 현금(3M T-Bill)을 <b>최근 12개월 수익률</b> 기준으로 순위 산정</li>
         <li><b>미국채 10Y</b>는 10년물 금리(GS10) 기반 듀레이션 근사 총수익 지수, <b>현금</b>은 3M T-Bill 월복리 지수로 산출</li>
         <li><b>주식 내 주도 산업·대표 종목</b>은 당대 미국 증시 주도주 기록에 기반하며, 모든 시점에서 표시됩니다</li>
-        <li><b>섹터 로테이션</b>은 해당 4분면에서 통상적으로 상대 우위/열위를 보이는 섹터를 제시합니다 — 확장기 시클리컬, 방어기 필수소비재·유틸리티, 조정기 에너지·가치주, 유동성기 성장주·금</li>
+        <li><b>섹터 로테이션</b>은 사분면마다 겹치지 않게 나눕니다. 금과 필수소비재는 방어에만 둡니다. 중립 달은 사분면 없이 기본 비중 유지입니다.</li>
         <li>가격 데이터: FRED(St. Louis Fed), S&P/Shiller 월간 지수, LBMA 금 시세</li>
       </ul>
     </div>
   </div>
   <details><summary>v1 / v2 비교 · 최근 36개월</summary><table id="v1-comparison"><thead><tr><th>월</th><th>v1 G</th><th>v1 L</th><th>v2 G</th><th>v2 L</th></tr></thead><tbody></tbody></table></details>
+  <details open><summary>v2 / v3 비교 · 최근 36개월</summary><table id="v2-comparison"><thead><tr><th>월</th><th>v2 G</th><th>v2 L</th><th>v2 국면</th><th>v3 G</th><th>v3 L</th><th>v3 국면</th></tr></thead><tbody></tbody></table></details>
 </div>
 <!--METHOD_END-->
 </section>
@@ -592,44 +595,67 @@ function leaderFor(dstr){
 }
 /* 레짐별 전형적 섹터 로테이션 — 경기·유동성 국면에 따른 상대 강세/약세 섹터 */
 const REGIME_SECTORS={
-  expansion:{ favor:"경기민감 시클리컬 · 산업재 · 소재 · 경기소비재 · 금융",
-              avoid:"필수소비재 · 유틸리티 · 장기채",
-              note:"성장·유동성 동반 우호. 이익 모멘텀이 높은 시클리컬이 시장을 주도하는 구간" },
-  liquidity:{ favor:"성장주 · IT/플랫폼 · 바이오 · 금 · 장기채",
-              avoid:"에너지 · 소재 · 은행",
-              note:"실물 성장은 약하나 금리·유동성이 우호. 듀레이션이 긴 성장주와 금이 유리한 구간" },
-  adjustment:{favor:"에너지 · 필수소비재 · 헬스케어 · 배당/가치주 · 단기채",
+  expansion:{ favor:"산업재 · 소재 · 경기소비재 · 금융",
+              avoid:"유틸리티 · 장기채 · 필수소비재",
+              note:"성장·유동성 방향이 함께 우호. 이익 모멘텀이 있는 시클리컬이 앞서는 구간" },
+  liquidity:{ favor:"성장주 · IT/플랫폼 · 바이오 · 장기채",
+              avoid:"에너지 · 은행 · 소재",
+              note:"성장 수준은 약해도 유동성 변화는 우호. 듀레이션이 긴 성장주가 앞서는 구간" },
+  adjustment:{favor:"에너지 · 배당/가치주 · 단기채",
               avoid:"고밸류 성장주 · 리츠 · 장기채",
-              note:"성장은 견조하나 긴축. 밸류에이션 부담이 큰 자산이 조정받고 현금흐름·가치주가 상대 우위" },
+              note:"성장은 버티지만 유동성은 조여짐. 현금흐름과 짧은 듀레이션이 상대 우위" },
   defense:{   favor:"필수소비재 · 헬스케어 · 유틸리티 · 통신 · 현금 · 금",
-              avoid:"경기소비재 · 산업재 · 소재 · 하이일드",
-              note:"성장 둔화 + 긴축. 방어주와 현금성 자산의 상대 방어력이 부각되는 구간" }
+              avoid:"경기소비재 · 산업재 · 하이일드",
+              note:"성장과 유동성이 함께 약함. 방어주·현금·금의 상대 방어력이 부각되는 구간" }
 };
+const PHASE={early_recovery:"초기 회복",late_cycle:"확장 후반",expansion:"확장",liquidity:"유동성",adjustment:"조정",defense:"방어",neutral:"중립"};
 const EQUITY_KEYS=["spx","ndx"];
 
 /* ---------- helpers ---------- */
 const $=id=>document.getElementById(id);
 const fmt=v=>(v>0?"+":"")+v.toFixed(2);
-function regimeOf(m){return RG[m.r];}
 function annualize(list){
   const by={};
   list.filter(m=>!m.p).forEach(m=>{const y=m.d.slice(0,4);(by[y]=by[y]||[]).push(m);});
   return Object.keys(by).sort().map(y=>{
     const a=by[y],g=a.reduce((s,m)=>s+m.g,0)/a.length,l=a.reduce((s,m)=>s+m.l,0)/a.length;
     const r=(g>=0&&l>=0)?"expansion":(g<0&&l>=0)?"liquidity":(g<0&&l<0)?"defense":"adjustment";
-    const n=Math.abs(g)<.15&&Math.abs(l)<.15,b=(Math.abs(g)<.15||Math.abs(l)<.15)&&!n;
+    const n=Math.abs(g)<.10&&Math.abs(l)<.10,b=(Math.abs(g)<.10||Math.abs(l)<.10)&&!n;
     return {d:y,g:+g.toFixed(2),l:+l.toFixed(2),r,c:!n&&!b,n,b,src:a[a.length-1]};
   });
 }
 const ANN = annualize(M);
 
-function boundaryAxis(m){return Math.abs(m.g)<.15?"성장축":"유동성축";}
-function regimeText(m){return (m.n?"중립·전환":RG[m.r].ko+" "+RG[m.r].tag)+(m.b?" · 경계("+boundaryAxis(m)+" 0 근처)":"")+(m.p?" · 잠정":"");}
+function boundaryAxis(m){
+  if(m.ax) return m.ax.g===0?"성장축":"유동성축";
+  return Math.abs(m.g)<.10?"성장축":"유동성축";
+}
+function assignedRegime(m){
+  if(m.regime!==undefined) return m.regime||null;
+  return m.n?null:m.r;
+}
+function regimeOf(m){
+  const key=assignedRegime(m);
+  return key&&RG[key]?RG[key]:{ko:"중립",tag:"",color:"var(--ink3)",hex:NEUTRAL_HEX,bg:"transparent",desc:"기본 비중 유지"};
+}
+function regimeText(m){
+  const key=assignedRegime(m);
+  const phase=m.phase&&PHASE[m.phase]&&m.phase!==key?" · "+PHASE[m.phase]:"";
+  if(!key) return "기본 비중 유지"+(m.b?" · 경계("+boundaryAxis(m)+" 0 근처)":"")+(m.p?" · 잠정":"");
+  return RG[key].ko+" "+RG[key].tag+phase+(m.b?" · 경계("+boundaryAxis(m)+" 0 근처)":"")+(m.p?" · 잠정":"");
+}
 function regimeDuration(list){
   const history=list.filter(m=>!m.p),last=history[history.length-1];
   if(!last)return {count:0,boundary:false};
+  if(last.regime===undefined){
+    let count=0,boundary=false;
+    for(let i=history.length-1;i>=0;i--){const m=history[i];if(m.r!==last.r&&!m.b)break;count++;boundary=boundary||!!m.b;}
+    return {count,boundary};
+  }
+  const key=last.regime||null;
+  if(!key)return {count:0,boundary:false};
   let count=0,boundary=false;
-  for(let i=history.length-1;i>=0;i--){const m=history[i];if(m.r!==last.r&&!m.b)break;count++;boundary=boundary||!!m.b;}
+  for(let i=history.length-1;i>=0;i--){const m=history[i];if((m.regime||null)!==key)break;count++;boundary=boundary||!!m.b;}
   return {count,boundary};
 }
 /* ---------- header / KPI ---------- */
@@ -646,7 +672,7 @@ $("ft-latest").textContent = latest.d;
   const badge=document.createElement('span');badge.className='badge';badge.textContent=latest.p?'잠정':latest.c?'확정':'미확정';
   $("kpi-regime").appendChild(badge);
   $("kpi-regime").style.opacity=latest.b?.55:1;
-  $("kpi-regime-desc").textContent=latest.n?'원점 인접 — 중립/전환 가능 구간':latest.b?'한 축이 원점 인접 — 사분면 판정 신뢰도 낮음':r.desc;
+  $("kpi-regime-desc").textContent=!assignedRegime(latest)?'기본 비중 유지 — 사분면을 지정하지 않습니다':latest.b?'한 축이 진입 문턱 안쪽입니다':latest.phase==='early_recovery'?'초기 회복 · '+r.desc:r.desc;
   $("monthly-coverage").textContent='실측 비중 G '+Math.round(latest.ow.g*100)+'% · L '+Math.round(latest.ow.l*100)+'%'+
     (latest.p?' · 잠정 계산월; 국면 지속·연간 평균·성과 자산 집계 제외':'')+
     (Object.keys(latest.cf||{}).length?' · 이월 '+Object.entries(latest.cf).map(([k,d])=>k+' '+d).join(', '):'');
@@ -663,6 +689,13 @@ $("ft-latest").textContent = latest.d;
   const duration=regimeDuration(M);
   $("kpi-dur").textContent=duration.count+"개월";
   $("kpi-dur-d").textContent='잠정 제외'+(duration.boundary?' · 경계 포함':'')+' · 같은 국면';
+  const v2same=(DATA.meta.v2_history||[]).find(row=>row.d===latest.d);
+  const bits=[];
+  if(v2same) bits.push('비교용 v2 · G '+fmt(v2same.g)+' · L '+fmt(v2same.l)+' · '+(RG[v2same.r]?RG[v2same.r].ko:v2same.r)+(v2same.n?' · 중립':''));
+  if(latest.fc!=null) bits.push('금융여건 '+fmt(latest.fc)+(latest.fcp!=null?' · 백분위 '+latest.fcp+'%':''));
+  if(latest.gc!=null) bits.push('고전 z G '+fmt(latest.gc)+' · L '+fmt(latest.lc));
+  if(latest.dg!=null) bits.push('3개월 변화 ΔG '+fmt(latest.dg)+' · ΔL '+fmt(latest.dl));
+  $("v2-compare-note").textContent=bits.join(' · ');
 })();
 
 /* ---------- purpose-specific period presets ---------- */
@@ -761,13 +794,13 @@ function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
     {x:x0,y:y0,w:W-PAD.r-x0,h:H-PAD.b-y0,c:"rgba(176,127,30,.055)"}];
   tints.forEach(t=>{if(t.w>0&&t.h>0)svg.appendChild(el("rect",{x:t.x,y:t.y,width:t.w,height:t.h,fill:t.c}));});
 
-  for(const band of [{x:X(-.15),y:PAD.t,width:X(.15)-X(-.15),height:H-PAD.b-PAD.t},
-    {x:PAD.l,y:Y(.15),width:W-PAD.r-PAD.l,height:Y(-.15)-Y(.15)}]){
+  for(const band of [{x:X(-.10),y:PAD.t,width:X(.10)-X(-.10),height:H-PAD.b-PAD.t},
+    {x:PAD.l,y:Y(.10),width:W-PAD.r-PAD.l,height:Y(-.10)-Y(.10)}]){
     svg.appendChild(el('rect',{...band,fill:'rgba(207,196,176,.09)',stroke:'#cfc4b0','stroke-width':1,'stroke-dasharray':'3 5',class:'boundary-band'}));
   }
-  const neutralX=X(-.15),neutralY=Y(.15),neutralW=X(.15)-X(-.15),neutralH=Y(-.15)-Y(.15);
+  const neutralX=X(-.10),neutralY=Y(.10),neutralW=X(.10)-X(-.10),neutralH=Y(-.10)-Y(.10);
   svg.appendChild(el("rect",{x:neutralX,y:neutralY,width:neutralW,height:neutralH,fill:"rgba(207,196,176,.16)",stroke:"#cfc4b0","stroke-width":1,"stroke-dasharray":"4 4"}));
-  const neutralLabel=el("text",{x:neutralX+6,y:neutralY+13,class:"neutral-label"});neutralLabel.textContent="중립·전환 ±0.15";svg.appendChild(neutralLabel);
+  const neutralLabel=el("text",{x:neutralX+6,y:neutralY+13,class:"neutral-label"});neutralLabel.textContent="이탈 ±0.10 · 진입 ±0.25";svg.appendChild(neutralLabel);
 
   ticksFor(gx0,gx1).forEach(v=>{
     svg.appendChild(el("line",{x1:X(v),y1:PAD.t,x2:X(v),y2:H-PAD.b,stroke:"#eae2d3","stroke-width":1}));
@@ -802,7 +835,7 @@ function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
 
   const radius=points.length<=14?8.5:points.length<=30?7:5.5,placed=[],labelLayer=el("g",{});
   points.forEach((point,index)=>{
-    const isLast=index===points.length-1,isStart=index===0,hex=point.n?NEUTRAL_HEX:RG[point.r].hex;
+    const isLast=index===points.length-1,isStart=index===0,pointKey=assignedRegime(point),hex=pointKey?RG[pointKey].hex:NEUTRAL_HEX;
     const cx=X(point.g),cy=Y(point.l),selected=annual?point.d===state.selected.d.slice(0,4):point.d===state.selected.d;
     const target=annual?point.src:point;
     const aria=(annual?annualPointLabel(point):point.d)+", 성장 "+fmt(point.g)+", 유동성 "+fmt(point.l)+", "+regimeText(point);
@@ -832,7 +865,7 @@ function renderQuadrant(svgId,tooltipId,chartboxId,points,options){
     group.addEventListener("mousemove",event=>{
       const bounds=$(chartboxId).getBoundingClientRect();
       tooltip.innerHTML='<div class="tt-d">'+(annual?annualPointLabel(point):point.d)+'</div><div class="tt-r" style="color:'+
-        (point.n?"#cfc4b0":RG[point.r].hex)+'">'+regimeText(point)+
+        hex+'">'+regimeText(point)+
         '</div><div class="tt-gl">G '+fmt(point.g)+" · L "+fmt(point.l)+"</div>";
       tooltip.style.opacity=1;
       let tx=event.clientX-bounds.left+16,ty=event.clientY-bounds.top-10;
@@ -911,9 +944,9 @@ function barRows(container,zmap,labels,weights){
   });
 }
 function updateSelPanel(){
-  const m=state.selected, r=RG[m.r];
+  const m=state.selected, r=regimeOf(m);
   $("sel-date").textContent=m.d;
-  $("sel-regime").textContent=regimeText(m)+(m.p||m.n||m.b?'':m.c?' · 확정':' · 미확정');
+  $("sel-regime").textContent=regimeText(m)+(m.p||!assignedRegime(m)?'':m.c?' · 확정':' · 미확정');
   $("sel-regime").style.color=r.hex;$("sel-regime").style.opacity=m.b?.55:1;
   $("sel-g").textContent=fmt(m.g); $("sel-l").textContent=fmt(m.l);
   $("sel-g").style.color=m.g>=0?"var(--exp)":"var(--def)";
@@ -927,11 +960,15 @@ function updateSelPanel(){
 function renderAssets(m){
   const box=$("asset-rank"), lead=$("equity-lead");
   box.innerHTML=""; lead.innerHTML="";
-  if(m.p){box.innerHTML='<p class="point-note">잠정 계산월은 성과 자산 순위를 표시하지 않습니다.</p>';return;}
-  const rows=Object.keys(m.a||{}).filter(k=>m.a[k]!=null)
-    .map(k=>({k,label:DATA.meta.asset_labels[k],v:m.a[k]}))
-    .sort((a,b)=>b.v-a.v);
-  if(!rows.length){box.innerHTML='<div style="font-size:12.5px;color:var(--ink3);padding:6px 2px">해당 시점의 자산 수익률 데이터가 없습니다.</div>';return;}
+  let rows=[];
+  if(m.p){
+    box.innerHTML='<p class="point-note">잠정 계산월은 성과 자산 순위를 표시하지 않습니다.</p>';
+  }else{
+    rows=Object.keys(m.a||{}).filter(k=>m.a[k]!=null)
+      .map(k=>({k,label:DATA.meta.asset_labels[k],v:m.a[k]}))
+      .sort((a,b)=>b.v-a.v);
+    if(!rows.length) box.innerHTML='<div style="font-size:12.5px;color:var(--ink3);padding:6px 2px">해당 시점의 자산 수익률 데이터가 없습니다.</div>';
+  }
   rows.forEach((r,i)=>{
     const div=document.createElement("div");
     div.className="asset-row"+(i===0?" top":"");
@@ -940,7 +977,7 @@ function renderAssets(m){
     box.appendChild(div);
   });
   /* 주식 내 주도 산업·종목 + 레짐별 섹터 로테이션 — 항상 표시 */
-  const L=leaderFor(m.d), RS=REGIME_SECTORS[m.r];
+  const L=leaderFor(m.d), key=assignedRegime(m), RS=key?REGIME_SECTORS[key]:null;
   const topEq=rows.filter(r=>EQUITY_KEYS.includes(r.k)).sort((a,b)=>b.v-a.v)[0];
   let html='<div class="lead-box">';
   if(L){
@@ -949,11 +986,13 @@ function renderAssets(m){
           '<div class="lb-stocks">'+L.stocks+'</div>';
     if(topEq) html+='<div class="lb-eq">주식 성과 '+(topEq.v>0?"+":"")+topEq.v.toFixed(1)+'% <span>('+topEq.label+', 12M)</span></div>';
   }
-  if(RS){
-    html+='<div class="rot"><div class="lb-t" style="margin-bottom:7px">'+RG[m.r].ko+' 국면 섹터 로테이션</div>'+
+  if(!key){
+    html+='<div class="rot"><div class="lb-t" style="margin-bottom:7px">비중</div><div class="rot-note">기본 비중 유지</div></div>';
+  }else if(RS){
+    html+='<div class="rot"><div class="lb-t" style="margin-bottom:7px">'+RG[key].ko+' 국면 섹터 로테이션</div>'+
       '<div class="rot-row"><span class="rot-tag up">우위</span><span class="rot-txt">'+RS.favor+'</span></div>'+
       '<div class="rot-row"><span class="rot-tag dn">열위</span><span class="rot-txt">'+RS.avoid+'</span></div>'+
-      '<div class="rot-note">'+RS.note+'</div></div>';
+      '<div class="rot-note">'+RS.note+(m.phase==='early_recovery'?' 초기 회복이라 성장 수준보다 방향을 함께 봅니다.':'')+'</div></div>';
   }
   html+='<div class="lb-note">당대 미국 증시 주도주 기록 및 경기 국면별 섹터 로테이션 통념에 기반한 참고 정보이며, 특정 종목의 매수·매도 권유가 아닙니다.</div></div>';
   lead.innerHTML=html;
@@ -968,7 +1007,8 @@ function drawRibbon(){
   const ctx=rb.getContext("2d");ctx.scale(dpr,dpr);
   const bw=wpx/M.length;
   M.forEach((m,i)=>{
-    ctx.fillStyle=m.n?NEUTRAL_HEX:RG[m.r].hex;
+    const ribbonKey=assignedRegime(m);
+    ctx.fillStyle=ribbonKey?RG[ribbonKey].hex:NEUTRAL_HEX;
     ctx.globalAlpha=m.b?.55:m.p?.25:m.c?1:.45;
     ctx.fillRect(i*bw,8,Math.max(bw,.8),40);
   });
@@ -994,8 +1034,11 @@ rb.addEventListener("mousemove",ev=>{
 });
 window.addEventListener("resize",drawRibbon);
 
+const v2ByDate=Object.fromEntries((DATA.meta.v2_compare||DATA.meta.v2_history||[]).map(row=>[row.d,row]));
 const compareTable=document.querySelector('#v1-comparison tbody');
-if(compareTable){for(const old of DATA.meta.v1_compare||[]){const now=M.find(m=>m.d===old.d);if(now){const tr=document.createElement('tr');for(const v of [old.d,fmt(old.g),fmt(old.l),fmt(now.g),fmt(now.l)]){const td=document.createElement('td');td.textContent=v;tr.appendChild(td);}compareTable.appendChild(tr);}}}
+if(compareTable){for(const old of DATA.meta.v1_compare||[]){const now=v2ByDate[old.d];if(now){const tr=document.createElement('tr');for(const v of [old.d,fmt(old.g),fmt(old.l),fmt(now.g),fmt(now.l)]){const td=document.createElement('td');td.textContent=v;tr.appendChild(td);}compareTable.appendChild(tr);}}}
+const v3Table=document.querySelector('#v2-comparison tbody');
+if(v3Table){for(const old of DATA.meta.v2_compare||[]){const now=M.find(m=>m.d===old.d);if(now){const tr=document.createElement('tr');const regime=now.regime?RG[now.regime].ko:'기본 비중 유지';for(const v of [old.d,fmt(old.g),fmt(old.l),RG[old.r]?RG[old.r].ko:old.r,fmt(now.g),fmt(now.l),regime]){const td=document.createElement('td');td.textContent=v;tr.appendChild(td);}v3Table.appendChild(tr);}}}
 
 /* ---------- init ---------- */
 renderRecent();
