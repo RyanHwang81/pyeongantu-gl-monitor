@@ -11,6 +11,8 @@ score, which is the one that lines up with the Chicago Fed NFCI.
 """
 from model_v2 import composite, expanding_percentile, quadrant
 
+# Published as meta.model_version. scripts/check_dist_model.py blocks a deploy whose dist disagrees.
+MODEL_VERSION = '3.0'
 ENTER, EXIT, STRONG = 0.25, 0.10, 0.50
 CONFIRM_MONTHS = 2
 CARRY_LIMIT = 2

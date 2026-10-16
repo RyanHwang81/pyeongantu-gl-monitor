@@ -1,0 +1,72 @@
+# FRED 공식 API 접속 시험 (GitHub 호스티드 ubuntu 러너)
+# update.yml·배포와 무관합니다. 데이터 커밋, Pages 배포를 하지 않습니다.
+name: FRED 접속 시험 (ubuntu)
+
+on:
+  workflow_dispatch:
+    inputs:
+      series:
+        description: "시험할 FRED 시리즈 (공백 구분)"
+        default: "DGS2 ICSA"
+        required: true
+      run_backtest:
+        description: "일간 레이더 백테스트도 실행해 아티팩트로 올리기"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fred-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      SERIES: ${{ inputs.series || 'DGS2 ICSA' }}
+      RUN_BACKTEST: ${{ inputs.run_backtest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 러너 정보
+        run: |
+          echo "runner: $RUNNER_OS $RUNNER_ARCH / $(python --version)"
+
+      - name: FRED 공식 API 접속 시험
+        run: python scripts/fred_probe.py $SERIES --csv
+
+      - name: 백테스트 의존성 설치
+        if: env.RUN_BACKTEST == 'true'
+        run: python -m pip install --quiet "pandas>=2.2" numpy
+
+      - name: 일간 레이더 백테스트
+        if: env.RUN_BACKTEST == 'true'
+        run: |
+          mkdir -p radar-out
+          export GL_CACHE="$PWD/radar-out/cache" && mkdir -p "$GL_CACHE"
+          start=$(date +%s)
+          python scripts/daily_radar_backtest.py --json radar-out/radar.json | tee radar-out/radar.md
+          echo "elapsed: $(( $(date +%s) - start ))s" | tee -a radar-out/radar.md
+          {
+            echo "## 일간 레이더 백테스트"
+            echo
+            grep '^|' radar-out/radar.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          # FRED 원자료 캐시는 재배포 문제를 피하려고 아티팩트에서 뺍니다.
+          rm -rf "$GL_CACHE"
+
+      - name: 결과 아티팩트 업로드
+        if: env.RUN_BACKTEST == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-radar-backtest
+          path: radar-out/
+          retention-days: 14

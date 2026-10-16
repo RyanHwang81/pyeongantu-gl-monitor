@@ -536,7 +536,7 @@ def build_data():
     out = {
         "meta": {
             "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d"),
-            "model_version":"3.0",
+            "model_version":v3.MODEL_VERSION,
             "v2_model_version":"2.0",
             "model_changes":[
                 "Single-stage robust median/MAD z-score with theoretical correlation rescaling; classical single-stage kept as gc/lc",
