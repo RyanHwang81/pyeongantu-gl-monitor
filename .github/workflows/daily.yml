@@ -1,0 +1,137 @@
+name: GL 일간 레이더 갱신
+
+on:
+  schedule:
+    # 화~토 11:17 UTC (= 한국시간 20:17). 전 영업일 미국 금리·달러와
+    # 목요일 실업수당청구·H.4.1(순유동성)이 반영된 뒤 돌도록 잡았습니다.
+    - cron: "17 11 * * 2-6"
+  workflow_dispatch:
+  # PR에서는 생성·검증만 하고 커밋·배포는 하지 않습니다.
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/daily.yml
+      - scripts/build_daily_radar.py
+      - scripts/daily_radar_backtest.py
+      - requirements.txt
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+
+# 월간 update.yml과 같은 그룹이라 dist 커밋과 Pages 배포가 서로 겹치지 않습니다.
+concurrency:
+  group: gl-update-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IS_PR: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: 의존성 설치
+        run: python -m pip install -r requirements.txt
+
+      - name: 테스트
+        run: python -m unittest discover -s tests
+
+      - name: 일간 레이더 생성
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          test -n "$FRED_API_KEY" || { echo "FRED_API_KEY repository secret missing"; exit 1; }
+          python scripts/build_daily_radar.py --out dist/daily_data.json
+
+      - name: 일간 레이더 검증 (신선도·기준 모델)
+        run: |
+          python - <<'PY'
+          import json, sys
+          sys.path.insert(0, "scripts")
+          from check_dist_model import code_version
+          d = json.load(open("dist/daily_data.json", encoding="utf-8"))
+          meta, latest = d["meta"], d["latest"]
+          assert meta["reference_model_version"] == code_version(), meta["reference_model_version"]
+          assert latest["g"] is not None and latest["l"] is not None, latest
+          assert meta["stale_bdays"] <= 3, f"latest score is {meta['stale_bdays']} business days old"
+          stale = [f"{a}:{k}" for a in ("g", "l") for k, v in d["components"][a].items() if v["stale"]]
+          print("daily radar OK", latest["date"], "G", latest["g"], "L", latest["l"], latest["regime_ko"],
+                "| stale inputs:", stale or "none", "| source_errors:", list(meta["source_errors"]) or "none")
+          PY
+
+      - name: 공개 dist 모델 버전 검사
+        run: python scripts/check_dist_model.py dist
+
+      - name: 결과 미리보기 업로드 (PR 전용)
+        if: env.IS_PR == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-radar-preview
+          path: dist/daily_data.json
+          retention-days: 7
+
+      - name: 변경사항 커밋
+        if: env.IS_PR != 'true'
+        run: |
+          git config user.name  "gl-bot"
+          git config user.email "gl-bot@users.noreply.github.com"
+          git add dist/daily_data.json
+          if git diff --staged --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "chore: 일간 레이더 갱신 ($(date -u +%Y-%m-%d))"
+            git push
+          fi
+
+      - name: Stage public files only
+        if: env.IS_PR != 'true'
+        run: |
+          mkdir -p dist-public
+          cp dist/index.html dist/en.html dist/gl_data.json dist/daily_data.json dist-public/
+
+      - name: GitHub Pages 업로드
+        if: env.IS_PR != 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-public
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  notify-failure:
+    needs: [build, deploy]
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'GL 일간 레이더 갱신 실패';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `일간 레이더 갱신이 실패했습니다.\n\n- 실행 기록: ${run}\n- 이벤트: ${context.eventName}\n- 시각(UTC): ${new Date().toISOString()}\n\n월간 사분면과 공개 페이지는 영향을 받지 않습니다. 수정 후 다시 실행하고, 성공하면 이 이슈를 닫아 주세요.`;
+            const open = await github.paginate(github.rest.issues.listForRepo, {...context.repo, state: 'open', per_page: 100});
+            const existing = open.find(issue => !issue.pull_request && issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({...context.repo, issue_number: existing.number, body});
+            } else {
+              await github.rest.issues.create({...context.repo, title, body});
+            }

@@ -70,7 +70,7 @@ L_SPEC = {
     'VIXCLS': dict(w=.05, kind='d', lag=1, stale=5, t=lambda s: -s.rolling(20, min_periods=10).mean()),
 }
 FETCH = ('IC4WSA', 'CCSA', 'WEI', 'GDPNOW', 'SP500', 'NASDAQCOM', 'T5YIE', 'WALCL', 'WDTGAL',
-         'RRPONTSYD', 'DGS2', 'DFF', 'T10Y3M', 'BAMLH0A0HYM2', 'BAA10Y', 'DTWEXBGS', 'NFCI', 'VIXCLS')
+         'RRPONTSYD', 'DGS2', 'DFF', 'T10Y3M', 'BAMLH0A0HYM2', 'BAA10Y', 'DTWEXBGS', 'NFCI', 'VIXCLS', 'WM2NS')
 # G-axis variants for the redesign comparison. Fixed before the first real-data run.
 # Each changes one thing: the z baseline, the horizon, or the components.
 # D/E weights are the monthly v3 G weights mapped onto daily analogues, not fitted:
@@ -91,6 +91,33 @@ G_VARIANTS = {
     'D 월간대응 3지표·YoY·장기 기준': dict(spec=G_MONTHLY_ANALOG, z_window=None),
     'E 월간대응 3지표·YoY·3년 기준': dict(spec=G_MONTHLY_ANALOG, z_window=Z_WINDOW),
 }
+# L-axis variants, fixed before the first real-data run. G stays at variant D.
+# LC/LD map the monthly v3 L inputs (model_v3.change_liquidity) onto daily or weekly
+# series with the same horizons. TOTALSL has no daily analogue and is dropped; the
+# remaining monthly weights (.18 .18 .15 .15 .12 .12) are renormalised, not fitted.
+_LC_W = {'WM2NS': .18, 'DGS2': .18, 'NETLIQ': .15, 'DTWEXBGS': .15, 'T10Y3M': .12, 'BAA10Y': .12}
+_LC_W = {k: round(v / sum(_LC_W.values()), 4) for k, v in _LC_W.items()}
+L_MONTHLY_ANALOG = {
+    # H.6 weekly M2 comes out with the monthly release, roughly 3-4 weeks after the week ends.
+    'WM2NS': dict(w=_LC_W['WM2NS'], kind='w', lag=24, stale=30, t=lambda s: s.pct_change(52, fill_method=None) * 100),
+    'DGS2': dict(w=_LC_W['DGS2'], kind='d', lag=1, stale=5, t=lambda s: -s.diff(63)),
+    'NETLIQ': dict(w=_LC_W['NETLIQ'], kind='w', lag=1, stale=10, t=lambda s: s.pct_change(52, fill_method=None) * 100),
+    'DTWEXBGS': dict(w=_LC_W['DTWEXBGS'], kind='d', lag=7, stale=10, t=lambda s: -s.pct_change(252, fill_method=None) * 100),
+    'T10Y3M': dict(w=_LC_W['T10Y3M'], kind='d', lag=1, stale=5, t=lambda s: s.diff(126)),
+    'BAA10Y': dict(w=_LC_W['BAA10Y'], kind='d', lag=1, stale=5, t=lambda s: -s.diff(126)),
+}
+L_VARIANTS = {
+    'LA 기존(8지표·단기·3년 기준)': dict(spec=L_SPEC, z_window=Z_WINDOW, confirm=CONFIRM_DAYS),
+    'LB 8지표·단기·장기 기준': dict(spec=L_SPEC, z_window=None, confirm=CONFIRM_DAYS),
+    'LC 월간대응 6지표·월간 기간·장기 기준': dict(spec=L_MONTHLY_ANALOG, z_window=None, confirm=CONFIRM_DAYS),
+    'LD 월간대응 6지표·월간 기간·3년 기준': dict(spec=L_MONTHLY_ANALOG, z_window=Z_WINDOW, confirm=CONFIRM_DAYS),
+    # Same inputs as LC; both axes need 5 business days instead of 2 before a state change.
+    'LE LC + 상태 확인 5영업일': dict(spec=L_MONTHLY_ANALOG, z_window=None, confirm=5),
+}
+L_RULE = '학습 구간 사분면 일치율(히스테리시스) 최고안 선택, 단 학습 구간 오경보율이 LA 이하일 것'
+# Step-2 gate on the 2020-present holdout, fixed in advance: the pick must beat LA on
+# L direction, quadrant agreement and false-alarm rate, and clear these floors.
+GO_FLOORS = {'L': 65.0, 'Q': 45.0, 'false_alarm_max': 60.0}
 TRAIN = ('학습 2009-2019', None, '2019-12-31')
 TEST = ('검증 2020-현재', '2020-01-01', None)
 MILLIONS = {'WALCL': 1.0, 'WDTGAL': 1.0, 'RRPONTSYD': 1000.0}   # FRED default units, used without the API
@@ -208,8 +235,8 @@ def axis_score(spec, series, bdays, include, z_window=Z_WINDOW):
     return score, eff, z
 
 
-def hysteresis(score):
-    """v3 enter/exit thresholds, plus a 2-day confirmation before the state changes."""
+def hysteresis(score, confirm=CONFIRM_DAYS):
+    """v3 enter/exit thresholds, plus a `confirm`-day confirmation before the state changes."""
     state, pending, count, out = 0, None, 0, []
     for value in score.to_numpy():
         if not np.isfinite(value):
@@ -225,11 +252,11 @@ def hysteresis(score):
             pending, count = None, 0
         elif target == pending:
             count += 1
-            if count >= CONFIRM_DAYS:
+            if count >= confirm:
                 state, pending, count = target, None, 0
         else:
             pending, count = target, 1
-            if CONFIRM_DAYS <= 1:
+            if confirm <= 1:
                 state, pending, count = target, None, 0
         out.append(state)
     return pd.Series(out, index=score.index, dtype=float)
@@ -537,6 +564,83 @@ def compare(start, monthly_path):
             'rule': '학습 구간 G 방향 일치율 최고안 선택, 단 학습 구간 오경보율이 A안 이하일 것'}
 
 
+def _series_for(spec, series, raw):
+    """Inputs for a variant spec: derived series first, then the raw FRED series."""
+    return {sid: series[sid] if sid in series else raw.get(sid, pd.Series(dtype=float)) for sid in spec}
+
+
+def compare_l(start, monthly_path):
+    """Score every L variant against G variant D and the same monthly reference."""
+    raw, errors = load_all(start)
+    series, used = inputs(raw, start)
+    end = pd.Timestamp.today().normalize()
+    bdays = pd.bdate_range(start, end)
+    g_spec = G_MONTHLY_ANALOG
+    gs, _, _ = axis_score(g_spec, _series_for(g_spec, series, raw), bdays, set(g_spec), None)
+    monthly_all = load_monthly(monthly_path)
+    out = {}
+    for name, v in L_VARIANTS.items():
+        ls, _, _ = axis_score(v['spec'], _series_for(v['spec'], series, raw), bdays, set(v['spec']), v['z_window'])
+        gs_state, ls_state = hysteresis(gs, v['confirm']), hysteresis(ls, v['confirm'])
+        regime = daily_regime(gs_state, ls_state)
+        first = max(gs.first_valid_index() or end, ls.first_valid_index() or end)
+        monthly = monthly_all.loc[first:]
+        periods = {}
+        for label, a, b in (*PERIODS, TRAIN, TEST):
+            lo = pd.Timestamp(a) if a else None
+            hi = pd.Timestamp(b) if b else None
+            if hi is not None and hi < first:
+                continue
+            periods[label] = evaluate(monthly, gs_state, ls_state, gs, ls, regime, lo, hi)
+        last = ls.last_valid_index()
+        out[name] = {'first_scored_day': first.strftime('%Y-%m-%d'), 'periods': periods,
+                     'latest': {'date': last.strftime('%Y-%m-%d'), 'G': round(float(gs.get(last, np.nan)), 3),
+                                'L': round(float(ls[last]), 3), 'regime': regime.get(last)}}
+    used['WM2NS'] = {'series': 'WM2NS', 'first': None if raw['WM2NS'].empty else raw['WM2NS'].index[0].strftime('%Y-%m-%d')}
+    return {'inputs': used, 'source_errors': errors, 'variants': out, 'rule': L_RULE, 'go_floors': GO_FLOORS}
+
+
+def l_verdict(result):
+    """Apply the fixed selection rule and the step-2 gate."""
+    names = list(result['variants'])
+    base = names[0]
+    tr = {n: result['variants'][n]['periods'][TRAIN[0]] for n in names}
+    te = {n: result['variants'][n]['periods'].get(TEST[0]) for n in names}
+    base_fa = tr[base]['false_alarm']['false_alarm_rate'] or 0
+    ok = [n for n in names if (tr[n]['false_alarm']['false_alarm_rate'] or 0) <= base_fa]
+    pick = max(ok, key=lambda n: tr[n]['agreement']['Q']['rate'] or 0) if ok else None
+    if pick is None or te[pick] is None:
+        return pick, False, ['선택안 없음']
+    p, b = te[pick], te[base]
+    pl, pq, pf = p['agreement']['L']['rate'] or 0, p['agreement']['Q']['rate'] or 0, p['false_alarm']['false_alarm_rate'] or 100
+    bl, bq, bf = b['agreement']['L']['rate'] or 0, b['agreement']['Q']['rate'] or 0, b['false_alarm']['false_alarm_rate'] or 100
+    checks = [
+        (f'검증 L 방향 {pl}% > LA {bl}%', pl > bl), (f'검증 사분면 {pq}% > LA {bq}%', pq > bq),
+        (f'검증 오경보 {pf}% < LA {bf}%', pf < bf), (f'검증 L 방향 {pl}% ≥ {GO_FLOORS["L"]}%', pl >= GO_FLOORS['L']),
+        (f'검증 사분면 {pq}% ≥ {GO_FLOORS["Q"]}%', pq >= GO_FLOORS['Q']),
+        (f'검증 오경보 {pf}% ≤ {GO_FLOORS["false_alarm_max"]}%', pf <= GO_FLOORS['false_alarm_max']),
+    ]
+    return pick, all(c for _, c in checks), [f"{'통과' if c else '미달'}: {t}" for t, c in checks]
+
+
+def compare_l_markdown(result):
+    rows = ['| 안 | 구간 | 월수 | G 방향 | L 방향 | 사분면 | 사분면(부호) | 전환 | 사전 포착 | 선행 중앙값(주) | L축 선행(주) | 일간 전환 | 오경보율 |',
+            '|---|---|---|---|---|---|---|---|---|---|---|---|---|']
+    for name, v in result['variants'].items():
+        for label, r in v['periods'].items():
+            a = r['agreement']
+            rows.append('| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |'.format(
+                name, label, r['months'], fmt(a['G']['rate'], '%'), fmt(a['L']['rate'], '%'),
+                fmt(a['Q']['rate'], '%'), fmt(a['Q_any']['rate'], '%'), r['regime_lead']['events'],
+                fmt(r['regime_lead']['caught_before_announce'], '%'), fmt(r['regime_lead']['median_lead_weeks']),
+                fmt(r['axis_lead']['L']['median_lead_weeks']), r['false_alarm']['daily_switches'],
+                fmt(r['false_alarm']['false_alarm_rate'], '%')))
+    pick, go, checks = l_verdict(result)
+    rows += ['', f'선택 규칙(사전 고정): {result["rule"]}', f'규칙상 선택: {pick}',
+             f'2단계 진행 판정: {"진행" if go else "보류"}'] + [f'- {c}' for c in checks]
+    return '\n'.join(rows)
+
+
 def compare_markdown(result):
     rows = ['| 안 | 구간 | 월수 | G 방향 | L 방향 | 사분면 | 사분면(부호) | 전환 | 사전 포착 | 선행 중앙값(주) | G축 선행(주) | 일간 전환 | 오경보율 |',
             '|---|---|---|---|---|---|---|---|---|---|---|---|---|']
@@ -568,9 +672,19 @@ def main():
     ap.add_argument('--json')
     ap.add_argument('--selftest', action='store_true')
     ap.add_argument('--compare', action='store_true', help='compare the G-axis variants')
+    ap.add_argument('--compare-l', action='store_true', help='compare the L-axis variants with G variant D')
     args = ap.parse_args()
     if args.selftest:
         selftest()
+        return
+    if args.compare_l:
+        result = compare_l(args.start, args.monthly)
+        if args.json:
+            Path(args.json).write_text(json.dumps(result, ensure_ascii=False, indent=1, default=str), encoding='utf-8')
+        print(json.dumps({'inputs': result['inputs'], 'source_errors': result['source_errors'],
+                          'latest': {k: v['latest'] for k, v in result['variants'].items()}},
+                         ensure_ascii=False, indent=1))
+        print(compare_l_markdown(result))
         return
     if args.compare:
         result = compare(args.start, args.monthly)
