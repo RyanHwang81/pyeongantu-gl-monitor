@@ -22,6 +22,7 @@ on:
       - build.py
       - model_v2.py
       - model_v3.py
+      - scripts/check_dist_model.py
       - localization.py
       - gl_template.html
       - book_dashboard.json
@@ -97,6 +98,9 @@ jobs:
                      for item in month["indicators"].values())
           print("seven-gauge month/current-source contract OK", month["date"], meta["observed_count"], "/7")
           PY
+
+      - name: dist 모델 버전 검사 (코드와 다르면 커밋·배포 중단)
+        run: python3 scripts/check_dist_model.py dist
 
       - name: 커밋된 dist와 비교 (PR 전용)
         if: env.IS_PR == 'true'

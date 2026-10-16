@@ -26,6 +26,8 @@ jobs:
           assert "이번 달 세 줄 기록" not in visible
           print("dist/index.html contract OK")
           PY
+      - name: dist 모델 버전 검사 (코드와 다르면 배포 중단)
+        run: python3 scripts/check_dist_model.py dist
       - name: Stage public files only
         run: |
           mkdir -p dist-public
