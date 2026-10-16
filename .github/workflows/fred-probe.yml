@@ -59,12 +59,12 @@ jobs:
           mkdir -p radar-out
           export GL_CACHE="$PWD/radar-out/cache" && mkdir -p "$GL_CACHE"
           start=$(date +%s)
-          python scripts/daily_radar_backtest.py --compare --json radar-out/radar.json | tee radar-out/radar.md
+          python scripts/daily_radar_backtest.py --compare-l --json radar-out/radar.json | tee radar-out/radar.md
           echo "elapsed: $(( $(date +%s) - start ))s" | tee -a radar-out/radar.md
           {
-            echo "## 일간 레이더 G축 변형 비교"
+            echo "## 일간 레이더 L축 변형 비교 (G=D안)"
             echo
-            grep -E '^\||^선택 규칙|^규칙상' radar-out/radar.md
+            grep -E '^\||^선택 규칙|^규칙상|^2단계|^- ' radar-out/radar.md
           } >> "$GITHUB_STEP_SUMMARY"
           # FRED 원자료 캐시는 재배포 문제를 피하려고 아티팩트에서 뺍니다.
           rm -rf "$GL_CACHE"
