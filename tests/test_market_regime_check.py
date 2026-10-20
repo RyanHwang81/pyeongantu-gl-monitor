@@ -83,6 +83,20 @@ class MarketRegimeCheckTests(unittest.TestCase):
         self.assertAlmostEqual(combo.iloc[2], .5 + .5 * (.6 - .5))
         self.assertAlmostEqual(combo.iloc[3], .7)
 
+    def test_next_season_signal_precision_and_recall(self):
+        index = pd.date_range('2000-01-01', periods=24, freq='MS')
+        season = pd.Series(['defense'] * 12 + ['liquidity'] * 12, index=index, dtype=object)
+        weather_regime = ['defense'] * 9 + ['liquidity'] * 15  # turns three months before the season
+        weather = pd.DataFrame({'regime': weather_regime, 'G': -1.0, 'L': [-1.0] * 9 + [1.0] * 15}, index=index)
+        v3 = pd.DataFrame({'G': -1.0, 'L': -1.0}, index=index)
+        out = mr.next_season_signals(season, weather, v3, horizon=6)
+        s1 = out['signals']['S1 시장 국면 = 다음 계절']
+        self.assertEqual(s1['fires'], 1)
+        self.assertEqual(s1['precision'], 1.0)
+        self.assertEqual(s1['recall'], 1.0)
+        s4 = out['signals']['S4 바뀌어야 할 v3 축의 3개월 변화가 그 방향 (>0.05)']
+        self.assertEqual(s4['fires'], 0)  # v3 L never moves
+
     @unittest.skipUnless(os.environ.get('GL_BIAS_CACHE'), 'set GL_BIAS_CACHE to a folder of downloaded inputs')
     def test_full_run(self):
         result = mr.run(os.environ['GL_BIAS_CACHE'], pd.Timestamp.today().to_period('M').to_timestamp().strftime('%Y-%m-%d'))
