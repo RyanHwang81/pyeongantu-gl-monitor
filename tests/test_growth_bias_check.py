@@ -91,7 +91,7 @@ class GrowthBiasCheckTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('GL_BIAS_CACHE'), 'set GL_BIAS_CACHE to a folder of downloaded inputs')
     def test_replication_matches_published_scores(self):
-        result = gb.run(os.environ['GL_BIAS_CACHE'], os.environ.get('GL_BIAS_END', '2026-10-01'))
+        result = gb.run(os.environ['GL_BIAS_CACHE'], os.environ.get('GL_BIAS_END') or pd.Timestamp.today().to_period('M').to_timestamp().strftime('%Y-%m-%d'))
         self.assertLess(result['replication']['max_abs_dg'], 0.02)
         self.assertLess(result['replication']['max_abs_dl'], 0.02)
         self.assertEqual(result['replication']['regime_mismatch'], [])

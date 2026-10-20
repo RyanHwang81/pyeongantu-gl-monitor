@@ -305,11 +305,13 @@ def growth_variants(monthly, raw):
         'c3': ('2020-03~2022-12를 중위수/MAD 표본에서 제외', base, ('gap', COVID_STATS_GAP)),
         'c4': ('고전 평균/표준편차 z (gc와 같은 산식)', base, ('method', 'classical')),
         'c5': ('중위수/MAD, 단 척도 하한 = 0.5 × 같은 창 표준편차', base, ('floor', 0.5)),
+        'c6': ('c5, 단 2020-03~2022-12를 중위수·MAD·표준편차 표본에서 제외', base, ('gapfloor', 0.5)),
         'd1': ('YoY → 6개월 연율 (실업률은 6개월 변화)', six_month(False), None),
         'd2': ('3개월 평균 후 6개월 연율', six_month(True), None),
         'e1': ('a1 + b1', swap(GDP={'t': gdp, 'w': .20}, **unrate_split), None),
         'f1': ('a4 + c5 (서비스 입력 + 척도 하한)',
                swap(GDP={'t': gdp, 'w': .15}, SERV={'t': services, 'w': .15}), ('floor', 0.5)),
+        'f2': ('a4 + c6', swap(GDP={'t': gdp, 'w': .15}, SERV={'t': services, 'w': .15}), ('gapfloor', 0.5)),
         'e2': ('a2 + b1', swap(GDP={'t': gdp, 'w': .15}, INCOME={'t': income, 'w': .15}, **unrate_split), None),
     }
     return variants
@@ -324,6 +326,10 @@ def score_variant(comps, setting, index):
         ctx = stats_gap(*setting[1])
     elif setting and setting[0] == 'floor':
         ctx = mad_floor(setting[1])
+    elif setting and setting[0] == 'gapfloor':
+        ctx = contextlib.ExitStack()
+        ctx.enter_context(stats_gap(*COVID_STATS_GAP))
+        ctx.enter_context(mad_floor(setting[1]))
     elif setting and setting[0] == 'method':
         method = setting[1]
     with ctx:
