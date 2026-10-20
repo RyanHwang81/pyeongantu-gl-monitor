@@ -57,6 +57,7 @@ SERIES_KO = {
     'stock_cash': '주식 − 현금',
     'stock_bond': '주식 − 10년 국채',
     'bond_cash': '10년 국채 − 현금',
+    'bond5_cash': '5년 국채 − 현금',
     'growth_value': '성장 − 가치 (−HML)',
     'rmw': '고수익성 − 저수익성 (RMW)',
     'mom': '모멘텀 (Mom)',
@@ -173,6 +174,7 @@ def forward(returns, h, lag):
     out['stock_cash'] = out['stock'] - out['cash']
     out['stock_bond'] = out['stock'] - out['bond10']
     out['bond_cash'] = out['bond10'] - out['cash']
+    out['bond5_cash'] = out['bond5'] - out['cash']
     return out
 
 
@@ -272,18 +274,23 @@ def non_overlapping(y, labels, groups, h, offset=0):
     return means
 
 
-def regime_stats(outcome, labels, groups, h, boot=True):
+def regime_stats(outcome, labels, groups, h, boot=True, extra=()):
+    """`extra` labels stay in the regression and the bootstrap so the monthly
+    sequence has no calendar gaps, but they are left out of the Wald test."""
+    everything = tuple(groups) + tuple(extra)
     aligned = pd.concat({'y': outcome, 'g': labels}, axis=1, sort=True).dropna()
-    aligned = aligned[aligned.g.isin(groups)]
+    aligned = aligned[aligned.g.isin(everything)]
     y, g = aligned.y.to_numpy(dtype=float), aligned.g.to_numpy()
-    nw = newey_west_means(y, g, groups, max(h, 6))
+    nw = newey_west_means(y, g, everything, max(h, 6))
     if nw is None:
         return None
-    b, cov, n = nw
+    b, cov, _ = nw
+    k = len(groups)
     se = np.sqrt(np.diag(cov))
-    wald, p = wald_equal(b, cov)
-    out = {'n': n, 'wald': round(wald, 2), 'p_equal': round(p, 4), 'groups': {}}
-    ci, dci = block_bootstrap_means(y, g, list(groups)) if boot else ({}, {})
+    wald, p = wald_equal(b[:k], cov[:k, :k])
+    out = {'n': int(np.isin(g, groups).sum()), 'wald': round(wald, 2), 'p_equal': round(p, 4), 'groups': {}}
+    ci, dci = block_bootstrap_means(y, g, list(everything)) if boot else ({}, {})
+    dci = {key: val for key, val in dci.items() if key[0] in groups and key[1] in groups}
     nov = non_overlapping(outcome, labels, groups, h)
     for i, name in enumerate(groups):
         pick = y[g == name]
@@ -352,9 +359,12 @@ def performance(r, cash):
 
 
 def backtests(returns, frames, lag):
+    """Benchmarks use the same months as the strategies (the first 1+lag months have no position)."""
     out = {}
+    first = returns.index[returns.index >= pd.Timestamp(PERIODS['1972–2026'][0])][1 + lag]
     for period, (lo, hi) in PERIODS.items():
-        part = returns.loc[lo:hi] if hi else returns.loc[lo:]
+        lo = max(pd.Timestamp(lo), first)
+        part = (returns.loc[lo:hi] if hi else returns.loc[lo:]).dropna(subset=['stock'])
         rows = {}
         rows['주식 100%'] = performance(part['stock'], part['cash'])
         rows['60/40 (주식/10년 국채)'] = performance(.6 * part['stock'] + .4 * part['bond10'], part['cash'])
@@ -428,12 +438,14 @@ def run(cache, end_month, lag, variants=('a4', 'f2')):
             for mode, labels in (('confirmed', pub_conf), ('all', pub_all)):
                 groups = QUADRANTS if mode == 'confirmed' else QUADRANTS + ('neutral',)
                 boot = h in (6, 12) or col in ('stock_cash', 'stock_bond')
-                stats = regime_stats(fwd[col], labels, groups, h, boot=boot)
+                extra = ('unconfirmed',) if mode == 'confirmed' else ()
+                stats = regime_stats(fwd[col], labels, groups, h, boot=boot, extra=extra)
                 result['tables'][f'{col}/{h}/{mode}/published'] = stats
         for key in variants:
             labels = labels_from(frames[key], 'confirmed')
             for col in ('stock_cash', 'stock_bond'):
-                result['tables'][f'{col}/{h}/confirmed/{key}'] = regime_stats(fwd[col], labels, QUADRANTS, h, boot=False)
+                result['tables'][f'{col}/{h}/confirmed/{key}'] = regime_stats(
+                    fwd[col], labels, QUADRANTS, h, boot=False, extra=('unconfirmed',))
 
     strat_frames = {}
     for key, frame in frames.items():

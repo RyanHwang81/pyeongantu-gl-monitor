@@ -93,6 +93,16 @@ class RegimeReturnsCheckTests(unittest.TestCase):
         self.assertEqual(means['a'], (3.0, 2))
         self.assertEqual(means['b'], (6.0, 2))
 
+    def test_extra_labels_stay_in_the_sequence_but_not_in_the_test(self):
+        index = pd.date_range('2000-01-01', periods=120, freq='MS')
+        rng = np.random.default_rng(1)
+        labels = pd.Series(np.where(np.arange(120) % 3 == 0, 'unconfirmed',
+                                    np.where(np.arange(120) % 2 == 0, 'a', 'b')), index=index)
+        y = pd.Series(rng.standard_normal(120) * 0.01, index=index)
+        stats = rr.regime_stats(y, labels, ('a', 'b'), 1, boot=False, extra=('unconfirmed',))
+        self.assertEqual(set(stats['groups']), {'a', 'b'})
+        self.assertEqual(stats['n'], int(labels.isin(['a', 'b']).sum()))
+
     @unittest.skipUnless(os.environ.get('GL_BIAS_CACHE'), 'set GL_BIAS_CACHE to a folder of downloaded inputs')
     def test_full_run_produces_tables_and_backtests(self):
         result = rr.run(os.environ['GL_BIAS_CACHE'], pd.Timestamp.today().to_period('M').to_timestamp().strftime('%Y-%m-%d'),
