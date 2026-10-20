@@ -500,6 +500,19 @@ def _name(value):
     return value if isinstance(value, str) else None
 
 
+def variant_regimes(cache, end_month, keys):
+    """Monthly regime frames (G, L, regime, c, p) for the named growth variants."""
+    raw, _ = load_all(cache)
+    monthly, netliq = monthly_inputs(raw)
+    index = model_index(monthly, end_month)
+    liquidity = v3.change_liquidity(monthly, netliq)
+    liquidity['NETLIQ']['available_from'] = monthly['WALCL'].first_valid_index()
+    l_axis = score_axis(liquidity, index)
+    specs = growth_variants(monthly, raw)
+    return {key: regimes(score_variant(specs[key][1], specs[key][2], index), l_axis, index)
+            for key in keys}
+
+
 def run(cache, end_month):
     raw, dropped = load_all(cache)
     monthly, netliq = monthly_inputs(raw)
