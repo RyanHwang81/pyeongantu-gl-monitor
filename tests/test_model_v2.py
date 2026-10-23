@@ -107,9 +107,14 @@ class ModelV2Tests(unittest.TestCase):
             return pd.Series(values,index=index)
         spx=pd.DataFrame({'Date':index,'SP500':100+x}).to_csv(index=False)
         gold=pd.DataFrame({'date':index,'price':200+x}).to_csv(index=False)
-        with patch('build.fred',side_effect=source),patch('build.fetch',side_effect=lambda u:spx if u==build.SPX_URL else gold),redirect_stdout(io.StringIO()):
+        sectors=pd.DataFrame({k:.01+.02*np.sin(x/(7+i)) for i,k in enumerate(
+            ['NoDur','Durbl','Manuf','Enrgy','HiTec','Telcm','Shops','Hlth','Utils','Other'])},index=index)
+        with patch('build.fred',side_effect=source),patch('build.fetch',side_effect=lambda u:spx if u==build.SPX_URL else gold),\
+             patch('build.industries',return_value=sectors),redirect_stdout(io.StringIO()):
             data=build.build_data()
         self.assertEqual({'DGS2':'RuntimeError'},data['meta']['source_errors'])
+        self.assertIsNotNone(data['meta']['market_weather'])
+        self.assertFalse(data['meta']['asset_guidance']['shown'])
         self.assertGreater(len(data['months']),100)
         self.assertNotIn('sensitive-sentinel',json.dumps(data))
 

@@ -275,6 +275,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
       <div class="k">마지막 계산월 레짐</div>
       <div class="v" id="kpi-regime">—<span class="badge" id="kpi-conf"></span></div>
       <div class="d" id="kpi-regime-desc">—</div>
+      <div class="d" id="kpi-weather">—</div>
     </div>
   </div>
   <div class="kpi"><div class="k">Growth (G)</div><div class="v" id="kpi-g">—</div><div class="d" id="kpi-g-d">전월 대비 —</div><div class="d" id="kpi-g-raw">—</div></div>
@@ -412,7 +413,8 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
         <li>기간스프레드와 신용스프레드의 수준은 L에 섞지 않습니다. 6개월 변화만 L에 넣고, 수준은 금융여건(FC)으로 따로 계산합니다. FC가 NFCI와 맞는지 진단에 적습니다.</li>
         <li>축은 +0.25에서 진입하고 +0.10 안쪽으로 들어와야 이탈합니다. 백분위 20/80도 진입 조건으로 씁니다. 두 축이 모두 벗어나야 사분면이 생깁니다.</li>
         <li><b>확정</b>: 같은 사분면이 최종 월 기준으로 2개월 연속이거나, 두 축 모두 |0.50| 이상인 강신호 1개월. 중립 달은 연속 횟수를 지우며, 그 달의 부호로 직전 확정 사분면을 바꾸지 않습니다. 경계 달은 횟수를 유지만 합니다.</li>
-        <li>3개월 변화 dG·dL로 초기 회복(성장은 아직 음수, 방향은 개선)과 확장 후반을 구분합니다. 중립 달의 자산 안내는 기본 비중 유지입니다.</li>
+        <li>3개월 변화 dG·dL로 초기 회복(성장은 아직 음수, 방향은 개선)과 확장 후반을 구분합니다. 중립 달은 사분면을 지정하지 않습니다.</li>
+        <li><b>시장 날씨</b>는 경기민감−방어 업종 6개월 수익(Ken French 10개 업종), 10Y−3M 6개월 변화, 2년물 3개월 변화(역), Baa−10Y 6개월 변화(역)로 만든 별도 점수입니다. 확인 규칙 없이 진입·이탈 문턱만 씁니다. 업종 자료는 1~2개월 늦게 공개되어 끝단은 이월됩니다.</li>
         <li>실측 비중 80% 미만은 잠정 행입니다. 40% 미만은 월간 역사에서 제외합니다. 잠정 행은 확정·연간 평균·성과 순위에 넣지 않습니다.</li>
       </ul>
     </div>
@@ -422,7 +424,7 @@ footer{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;font-si
         <li><b>자산군 6종</b> — 미국주식(S&P500), 나스닥, 금, 원유(WTI), 미국채 10Y, 현금(3M T-Bill)을 <b>최근 12개월 수익률</b> 기준으로 순위 산정</li>
         <li><b>미국채 10Y</b>는 10년물 금리(GS10) 기반 듀레이션 근사 총수익 지수, <b>현금</b>은 3M T-Bill 월복리 지수로 산출</li>
         <li><b>주식 내 주도 산업·대표 종목</b>은 당대 미국 증시 주도주 기록에 기반하며, 모든 시점에서 표시됩니다</li>
-        <li><b>섹터 로테이션</b>은 사분면마다 겹치지 않게 나눕니다. 금과 필수소비재는 방어에만 둡니다. 중립 달은 사분면 없이 기본 비중 유지입니다.</li>
+        <li><b>국면별 섹터 우위·열위 목록과 주식 비중</b>은 표시하지 않습니다. 1972–2026 검증과 2006–2026 보류 구간 검증에서 실제 수익률과 맞지 않거나 반대로 움직였습니다.</li>
         <li>가격 데이터: FRED(St. Louis Fed), S&P/Shiller 월간 지수, LBMA 금 시세</li>
       </ul>
     </div>
@@ -593,21 +595,14 @@ function leaderFor(dstr){
   const y=+dstr.slice(0,4);
   return LEADERS.find(x=>y>=x.s&&y<=x.e)||null;
 }
-/* 레짐별 전형적 섹터 로테이션 — 경기·유동성 국면에 따른 상대 강세/약세 섹터 */
-const REGIME_SECTORS={
-  expansion:{ favor:"산업재 · 소재 · 경기소비재 · 금융",
-              avoid:"유틸리티 · 장기채 · 필수소비재",
-              note:"성장·유동성 방향이 함께 우호. 이익 모멘텀이 있는 시클리컬이 앞서는 구간" },
-  liquidity:{ favor:"성장주 · IT/플랫폼 · 바이오 · 장기채",
-              avoid:"에너지 · 은행 · 소재",
-              note:"성장 수준은 약해도 유동성 변화는 우호. 듀레이션이 긴 성장주가 앞서는 구간" },
-  adjustment:{favor:"에너지 · 배당/가치주 · 단기채",
-              avoid:"고밸류 성장주 · 리츠 · 장기채",
-              note:"성장은 버티지만 유동성은 조여짐. 현금흐름과 짧은 듀레이션이 상대 우위" },
-  defense:{   favor:"필수소비재 · 헬스케어 · 유틸리티 · 통신 · 현금 · 금",
-              avoid:"경기소비재 · 산업재 · 하이일드",
-              note:"성장과 유동성이 함께 약함. 방어주·현금·금의 상대 방어력이 부각되는 구간" }
-};
+/* 시장 국면(날씨) — 시장 가격만으로 만든 참고 표시. 국면별 섹터 목록은 검증에서 맞지 않아 표시하지 않습니다. */
+const WEATHER=(DATA.meta.market_weather&&DATA.meta.market_weather.months)||[];
+function weatherFor(d){return WEATHER.find(x=>x.d===d)||null;}
+function weatherText(w){
+  if(!w) return "시장 날씨 계산 안 됨";
+  const name=w.w&&RG[w.w]?RG[w.w].ko+" "+RG[w.w].tag:"경계 구간";
+  return "시장 날씨 "+name+" · G "+fmt(w.g)+" · L "+fmt(w.l)+" ("+w.d+")";
+}
 const PHASE={early_recovery:"초기 회복",late_cycle:"확장 후반",expansion:"확장",liquidity:"유동성",adjustment:"조정",defense:"방어",neutral:"중립"};
 const EQUITY_KEYS=["spx","ndx"];
 
@@ -672,6 +667,7 @@ $("ft-latest").textContent = latest.d;
   const badge=document.createElement('span');badge.className='badge';badge.textContent=latest.p?'잠정':latest.c?'확정':'미확정';
   $("kpi-regime").appendChild(badge);
   $("kpi-regime").style.opacity=latest.b?.55:1;
+  $("kpi-weather").textContent=weatherText(WEATHER.length?WEATHER[WEATHER.length-1]:null);
   $("kpi-regime-desc").textContent=!assignedRegime(latest)?'기본 비중 유지 — 사분면을 지정하지 않습니다':latest.b?'한 축이 진입 문턱 안쪽입니다':latest.phase==='early_recovery'?'초기 회복 · '+r.desc:r.desc;
   $("monthly-coverage").textContent='실측 비중 G '+Math.round(latest.ow.g*100)+'% · L '+Math.round(latest.ow.l*100)+'%'+
     (latest.p?' · 잠정 계산월; 국면 지속·연간 평균·성과 자산 집계 제외':'')+
@@ -977,7 +973,7 @@ function renderAssets(m){
     box.appendChild(div);
   });
   /* 주식 내 주도 산업·종목 + 레짐별 섹터 로테이션 — 항상 표시 */
-  const L=leaderFor(m.d), key=assignedRegime(m), RS=key?REGIME_SECTORS[key]:null;
+  const L=leaderFor(m.d), W=weatherFor(m.d);
   const topEq=rows.filter(r=>EQUITY_KEYS.includes(r.k)).sort((a,b)=>b.v-a.v)[0];
   let html='<div class="lead-box">';
   if(L){
@@ -986,15 +982,10 @@ function renderAssets(m){
           '<div class="lb-stocks">'+L.stocks+'</div>';
     if(topEq) html+='<div class="lb-eq">주식 성과 '+(topEq.v>0?"+":"")+topEq.v.toFixed(1)+'% <span>('+topEq.label+', 12M)</span></div>';
   }
-  if(!key){
-    html+='<div class="rot"><div class="lb-t" style="margin-bottom:7px">비중</div><div class="rot-note">기본 비중 유지</div></div>';
-  }else if(RS){
-    html+='<div class="rot"><div class="lb-t" style="margin-bottom:7px">'+RG[key].ko+' 국면 섹터 로테이션</div>'+
-      '<div class="rot-row"><span class="rot-tag up">우위</span><span class="rot-txt">'+RS.favor+'</span></div>'+
-      '<div class="rot-row"><span class="rot-tag dn">열위</span><span class="rot-txt">'+RS.avoid+'</span></div>'+
-      '<div class="rot-note">'+RS.note+(m.phase==='early_recovery'?' 초기 회복이라 성장 수준보다 방향을 함께 봅니다.':'')+'</div></div>';
-  }
-  html+='<div class="lb-note">당대 미국 증시 주도주 기록 및 경기 국면별 섹터 로테이션 통념에 기반한 참고 정보이며, 특정 종목의 매수·매도 권유가 아닙니다.</div></div>';
+  html+='<div class="rot"><div class="lb-t" style="margin-bottom:7px">같은 달 시장 날씨</div>'+
+    '<div class="rot-txt">'+weatherText(W)+'</div>'+
+    '<div class="rot-note">시장 가격만으로 만든 참고 표시입니다. 확정 국면보다 먼저 움직이는 경향이 있지만 비중이나 매매 시점의 근거로는 검증되지 않았습니다. 국면별 섹터 우위·열위 목록은 검증에서 실제 수익률과 맞지 않아 표시하지 않습니다.</div></div>';
+  html+='<div class="lb-note">당대 미국 증시 주도주 기록에 기반한 참고 정보이며, 특정 종목의 매수·매도 권유가 아닙니다.</div></div>';
   lead.innerHTML=html;
 }
 
