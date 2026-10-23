@@ -92,7 +92,8 @@ def list_score(fwd, labels, mapping=None):
 
 def masks(index, end_offset, start=TRAIN_START):
     end = index + pd.DateOffset(months=end_offset) if end_offset >= 0 else index - pd.DateOffset(months=-end_offset)
-    train = pd.Series((index >= start) & (end <= TRAIN_END), index=index)
+    # Signal month and window both stay inside the training years, so no signal is in both sets.
+    train = pd.Series((index >= start) & (index <= TRAIN_END) & (end <= TRAIN_END), index=index)
     hold = pd.Series(index >= HOLDOUT_START, index=index)
     return train, hold
 
@@ -194,6 +195,31 @@ def item_check(returns, alignments):
     return out
 
 
+def season_age(season):
+    """Months since the current season began (0 in its first month)."""
+    s = season.dropna()
+    ages, start, prev = [], None, None
+    for stamp, value in s.items():
+        if value != prev:
+            start = stamp
+        ages.append((stamp.year - start.year) * 12 + stamp.month - start.month)
+        prev = value
+    return pd.Series(ages, index=s.index)
+
+
+def age_split(returns, season, k, cut=12):
+    """Exploratory: S at shift k for months early (≤ cut) and late (> cut) in their season."""
+    e = 1 + k + H
+    fwd = forward(returns, H, e)
+    s = list_score(fwd, season)
+    age = season_age(season).reindex(s.index)
+    train, hold = masks(s.index, e)
+    out = {}
+    for part, m in (('train', train), ('holdout', hold)):
+        out[part] = {'early': hac(s[m & (age <= cut)], H), 'late': hac(s[m & (age > cut)], H)}
+    return out
+
+
 # ---------------------------------------------------------------- run
 
 def run(cache, end_month):
@@ -210,6 +236,7 @@ def run(cache, end_month):
     ha = shift_rows[k_star]
     result['H-a'] = {'by_k': {str(k): v for k, v in shift_rows.items()}, 'k_star': k_star,
                      'pass': bool(k_star <= -3 and passes(ha)), 'k0': shift_rows[0]}
+    result['age_split'] = {str(k): age_split(returns, season, k) for k in (k_star, 0)}
     result['H-a_next'] = {**evaluate(returns, season, 1, 0, mapping=lambda q: NEXT[q])}
     result['H-a_next']['pass'] = passes(result['H-a_next'])
     result['H-a_prev'] = {**evaluate(returns, season, 1, 0, mapping=lambda q: PREV[q])}
@@ -255,6 +282,8 @@ def markdown(r):
     for k, v in r['H-a']['by_k'].items():
         lines.append(f"k {int(k):+3d} train {f(v['train'])} | holdout {f(v['holdout'])}")
     lines.append(f"k* {r['H-a']['k_star']} pass {r['H-a']['pass']}")
+    for k, v in r['age_split'].items():
+        lines.append(f"age split k {k}: " + ' | '.join(f"{p} early {f(x['early'])} late {f(x['late'])}" for p, x in v.items()))
     for key in ('H-a_next', 'H-a_prev', 'H-b', 'H-c', 'H-d'):
         v = r[key]
         lines.append(f"{key} pass {v['pass']} train {f(v['train'])} | holdout {f(v['holdout'])}" + (f" spells {v['spells']}" if 'spells' in v else ''))

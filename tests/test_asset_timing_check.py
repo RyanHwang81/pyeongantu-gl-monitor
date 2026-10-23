@@ -59,6 +59,17 @@ class AssetTimingTests(unittest.TestCase):
         train0, _ = at.masks(index, 0)
         self.assertTrue(train0.loc['2005-12-01'])
 
+    def test_training_and_holdout_never_share_a_signal_month(self):
+        index = pd.date_range('2000-01-01', '2008-12-01', freq='MS')
+        for e in (-17, -1, 0, 7):
+            train, hold = at.masks(index, e)
+            self.assertFalse((train & hold).any(), e)
+            self.assertFalse(train.loc['2006-01-01':].any(), e)
+
+    def test_season_age_counts_from_each_new_season(self):
+        s = pd.Series(['defense'] * 3 + ['liquidity'] * 2, index=pd.date_range('2000-01-01', periods=5, freq='MS'))
+        self.assertEqual(list(at.season_age(s)), [0, 1, 2, 0, 1])
+
     def test_pass_rule(self):
         ok = {'train': {'mean': 1.0, 't': 2.1, 'n': 100}, 'holdout': {'mean': 0.5, 't': 1.7, 'n': 50}}
         weak = {'train': {'mean': 1.0, 't': 1.9, 'n': 100}, 'holdout': {'mean': 0.5, 't': 1.7, 'n': 50}}
