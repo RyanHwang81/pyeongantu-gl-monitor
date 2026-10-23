@@ -86,7 +86,9 @@ def build(monthly, industries, index):
     df['gp'] = expanding_percentile(g.unit).reindex(df.index)
     df['lp'] = expanding_percentile(l.unit).reindex(df.index)
     flags, _ = v3.classify(df)
-    rows = [{'d': d.strftime('%Y-%m'), 'g': round(float(r.G), 3), 'l': round(float(r.L), 3), 'w': f['regime']}
+    # p marks months where either axis has under 80% observed weight, as in months[].p.
+    rows = [{'d': d.strftime('%Y-%m'), 'g': round(float(r.G), 3), 'l': round(float(r.L), 3), 'w': f['regime'],
+             'p': bool(min(float(r.owg), float(r.owl)) < .8 - 1e-10)}
             for (d, r), f in zip(df.iterrows(), flags)]
     last = df.index[-1]
     carried = {k: used for result in (g, l) for k, used in result.carried.loc[last].items() if used}
@@ -95,7 +97,8 @@ def build(monthly, industries, index):
         'label_ko': LABEL_KO,
         'weights': {'g': {k: c['w'] for k, c in g_comps.items()}, 'l': {k: c['w'] for k, c in l_comps.items()}},
         'industries_as_of': industries.dropna(how='all').index[-1].strftime('%Y-%m'),
-        'latest': {**rows[-1], 'carried': carried},
+        'latest': {**rows[-1], 'carried': carried,
+                   'ow': {'g': round(float(df.owg.iloc[-1]), 2), 'l': round(float(df.owl.iloc[-1]), 2)}},
         'months': rows,
         'note_ko': '시장 가격만으로 만든 참고 표시입니다. 확정 국면보다 먼저 움직이는 경향이 있지만, '
                    '자산 비중이나 매매 시점의 근거로 검증되지 않았습니다.',

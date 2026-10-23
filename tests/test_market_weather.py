@@ -69,6 +69,15 @@ class MarketWeatherTests(unittest.TestCase):
         self.assertEqual(out['latest']['d'], out['months'][-1]['d'])
         self.assertTrue({r['w'] for r in out['months']} <= {'expansion', 'liquidity', 'adjustment', 'defense', None})
         self.assertGreater(len({r['w'] for r in out['months']}), 2)
+        self.assertIn('ow', out['latest'])
+        self.assertFalse(out['latest']['p'])
+
+    def test_a_carried_industry_month_is_marked_provisional(self):
+        monthly, ind, index = synthetic_inputs()
+        out = mw.build(monthly, ind.iloc[:-1], index)  # industry data one month behind
+        self.assertEqual(out['latest']['carried'], {'CYCDEF': ind.index[-2].strftime('%Y-%m')})
+        self.assertTrue(out['latest']['p'])
+        self.assertEqual(out['latest']['ow']['g'], .5)
 
 
 if __name__ == '__main__':

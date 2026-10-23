@@ -598,10 +598,12 @@ function leaderFor(dstr){
 /* 시장 국면(날씨) — 시장 가격만으로 만든 참고 표시. 국면별 섹터 목록은 검증에서 맞지 않아 표시하지 않습니다. */
 const WEATHER=(DATA.meta.market_weather&&DATA.meta.market_weather.months)||[];
 function weatherFor(d){return WEATHER.find(x=>x.d===d)||null;}
-function weatherText(w){
+const WEATHER_INPUT={CYCDEF:"업종 수익률",CURVE:"10Y−3M",DGS2:"2년물",BAA:"Baa−10Y"};
+function weatherText(w,carried){
   if(!w) return "시장 날씨 계산 안 됨";
   const name=w.w&&RG[w.w]?RG[w.w].ko+" "+RG[w.w].tag:"경계 구간";
-  return "시장 날씨 "+name+" · G "+fmt(w.g)+" · L "+fmt(w.l)+" ("+w.d+")";
+  const c=Object.entries(carried||{}).map(([k,d])=>(WEATHER_INPUT[k]||k)+" "+d);
+  return "시장 날씨 "+name+" · G "+fmt(w.g)+" · L "+fmt(w.l)+" ("+w.d+")"+(w.p?" · 잠정":"")+(c.length?" · 이월: "+c.join(", "):"");
 }
 const PHASE={early_recovery:"초기 회복",late_cycle:"확장 후반",expansion:"확장",liquidity:"유동성",adjustment:"조정",defense:"방어",neutral:"중립"};
 const EQUITY_KEYS=["spx","ndx"];
@@ -667,7 +669,7 @@ $("ft-latest").textContent = latest.d;
   const badge=document.createElement('span');badge.className='badge';badge.textContent=latest.p?'잠정':latest.c?'확정':'미확정';
   $("kpi-regime").appendChild(badge);
   $("kpi-regime").style.opacity=latest.b?.55:1;
-  $("kpi-weather").textContent=weatherText(WEATHER.length?WEATHER[WEATHER.length-1]:null);
+  $("kpi-weather").textContent=weatherText(WEATHER.length?WEATHER[WEATHER.length-1]:null,DATA.meta.market_weather&&DATA.meta.market_weather.latest.carried);
   $("kpi-regime-desc").textContent=!assignedRegime(latest)?'기본 비중 유지 — 사분면을 지정하지 않습니다':latest.b?'한 축이 진입 문턱 안쪽입니다':latest.phase==='early_recovery'?'초기 회복 · '+r.desc:r.desc;
   $("monthly-coverage").textContent='실측 비중 G '+Math.round(latest.ow.g*100)+'% · L '+Math.round(latest.ow.l*100)+'%'+
     (latest.p?' · 잠정 계산월; 국면 지속·연간 평균·성과 자산 집계 제외':'')+

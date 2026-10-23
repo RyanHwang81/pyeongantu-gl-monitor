@@ -2,6 +2,9 @@
 import copy
 
 COPY = {
+  "업종 수익률": "Industry returns",
+  "2년물": "2Y",
+  "이월: ": "carried: ",
   "시장 날씨 계산 안 됨": "Market weather unavailable",
   "시장 날씨 ": "Market weather ",
   "경계 구간": "Borderline",
