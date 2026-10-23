@@ -2,6 +2,18 @@
 import copy
 
 COPY = {
+  "업종 수익률": "Industry returns",
+  "2년물": "2Y",
+  "이월: ": "carried: ",
+  "시장 날씨 계산 안 됨": "Market weather unavailable",
+  "시장 날씨 ": "Market weather ",
+  "경계 구간": "Borderline",
+  "같은 달 시장 날씨": "Market weather in the same month",
+  "시장 가격만으로 만든 참고 표시입니다. 확정 국면보다 먼저 움직이는 경향이 있지만 비중이나 매매 시점의 근거로는 검증되지 않았습니다. 국면별 섹터 우위·열위 목록은 검증에서 실제 수익률과 맞지 않아 표시하지 않습니다.": "A reference built from market prices only. It tends to move before the confirmed regime, but it has not been validated as a basis for allocation or timing. Regime sector favor/avoid lists are not shown because they did not match realized returns in testing.",
+  "당대 미국 증시 주도주 기록에 기반한 참고 정보이며, 특정 종목의 매수·매도 권유가 아닙니다.": "Historical U.S. market leaders are references, not recommendations to trade individual stocks.",
+  "3개월 변화 dG·dL로 초기 회복(성장은 아직 음수, 방향은 개선)과 확장 후반을 구분합니다. 중립 달은 사분면을 지정하지 않습니다.": "Three-month changes dG and dL separate early recovery (growth still negative but improving) from late cycle. Neutral months carry no quadrant.",
+  "<b>시장 날씨</b>는 경기민감−방어 업종 6개월 수익(Ken French 10개 업종), 10Y−3M 6개월 변화, 2년물 3개월 변화(역), Baa−10Y 6개월 변화(역)로 만든 별도 점수입니다. 확인 규칙 없이 진입·이탈 문턱만 씁니다. 업종 자료는 1~2개월 늦게 공개되어 끝단은 이월됩니다.": "<b>Market weather</b> is a separate score from 6-month cyclical-minus-defensive industry returns (Ken French 10 industries), the 6-month change in 10Y−3M, the 3-month change in the 2-year yield (inverted) and the 6-month change in Baa−10Y (inverted). It uses entry/exit thresholds without the confirmation rule. Industry data arrive one to two months late, so the latest values are carried.",
+  "<b>국면별 섹터 우위·열위 목록과 주식 비중</b>은 표시하지 않습니다. 1972–2026 검증과 2006–2026 보류 구간 검증에서 실제 수익률과 맞지 않거나 반대로 움직였습니다.": "<b>Regime sector favor/avoid lists and equity weights</b> are not shown. In 1972–2026 testing and the 2006–2026 holdout they did not match, or ran against, realized returns.",
   "평안투 · GL 레짐 모니터": "Pyeongantu · GL Regime Monitor",
   "평안투 GL 레짐 모니터": "Pyeongantu GL Regime Monitor",
   "평안투 ": "Pyeongantu ",

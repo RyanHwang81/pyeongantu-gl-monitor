@@ -23,6 +23,7 @@ import pandas as pd
 import numpy as np
 from model_v2 import composite, composite_v1, row_flags, net_liquidity, expanding_percentile, quadrant
 import model_v3 as v3
+import market_weather
 
 WINDOW, MIN_OBS, CLAMP, MIN_EFF_W = 216, 48, 3.0, 0.4
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
@@ -176,17 +177,30 @@ def refresh_book_dashboard(authored, target_month, sources, as_of=None, errors=N
                         pending_count=len(BOOK_INDICATORS)-observed, latest_judgment=latest["judgment"])
     return book
 
-def fetch(url, tries=4):
+def fetch_bytes(url, tries=4):
     last = None
     for i in range(tries):
         try:
             req = urllib.request.Request(url, headers=UA)
             with urllib.request.urlopen(req, timeout=45) as r:
-                return r.read().decode("utf-8", "replace")
+                return r.read()
         except Exception as e:
             last = e
             time.sleep(2 * (i + 1))
     raise RuntimeError(f"다운로드 실패: {url} ({last})")
+
+def fetch(url, tries=4):
+    return fetch_bytes(url, tries).decode("utf-8", "replace")
+
+def industries():
+    """Ken French 10 value-weighted industry portfolios (CSV text cached under GL_CACHE)."""
+    path = os.path.join(CACHE, "FF_10_Industry_Portfolios.csv") if CACHE else None
+    if path and os.path.exists(path):
+        return market_weather.parse_french(open(path, encoding="utf-8").read())
+    text = market_weather.industries_from_zip(fetch_bytes(market_weather.FRENCH_INDUSTRIES))
+    if path:
+        open(path, "w", encoding="utf-8").write(text)
+    return market_weather.parse_french(text)
 
 def fred_api(series_id, key):
     # Never send the key to the generic fetch/logger: its failure message includes the URL.
@@ -435,6 +449,21 @@ def build_data():
                  'r':flag['r'],'c':flag['c'],'n':flag['n'],'b':flag['b'],'p':flag['p']}
                 for (d,row),flag in zip(v2.iterrows(),v2_flags)]
 
+    log("시장 국면(날씨) 산출...")
+    weather=None
+    try:
+        sectors=industries()
+    except Exception as exc:
+        sectors=None
+        source_errors['FF_10_INDUSTRY']=type(exc).__name__
+        log('FF_10_INDUSTRY source_error', type(exc).__name__)
+    if sectors is not None:
+        try:
+            weather=market_weather.build(monthly, sectors, index)
+        except Exception as exc:
+            source_errors['MARKET_WEATHER']=type(exc).__name__
+            log('market weather error', type(exc).__name__)
+
     log("자산군 수익률 산출...")
     sp = pd.read_csv(io.StringIO(fetch(SPX_URL)))[["Date", "SP500"]].dropna()
     sp["Date"] = pd.to_datetime(sp["Date"])
@@ -546,7 +575,12 @@ def build_data():
             ],
             "summary_ko":"v3는 216개월 재표준화를 없애고, 코로나 스파이크에 덜 민감한 중위수/MAD로 점수를 만듭니다. 유동성 축은 변화율만 쓰고, 스프레드 수준은 금융여건으로 따로 둡니다. 중립 달은 사분면을 주지 않습니다.",
             "neutral_allocation":v3.NEUTRAL_ALLOCATION,
+            # Kept for readers of older fields. The dashboard no longer shows them.
             "regime_assets":v3.REGIME_ASSETS,
+            "asset_guidance":{"status":"withdrawn","shown":False,
+                "reason_ko":"국면별 섹터 우위·열위 목록과 국면별 주식 비중은 1972–2026 검증과 2006–2026 보류 구간 검증에서 "
+                            "실제 수익률과 맞지 않거나 반대로 움직였습니다. regime_assets와 months[].allocation은 호환을 위해 남기며 화면에는 표시하지 않습니다."},
+            "market_weather":weather,
             "source_errors":source_errors,"v1_compare":compare,
             "v2_compare":v2_history[-36:],
             "v2_history":v2_history,
