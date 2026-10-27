@@ -139,6 +139,7 @@ jobs:
           mkdir -p dist-public
           cp dist/index.html dist/en.html dist/gl_data.json dist-public/
           if [ -f dist/daily_data.json ]; then cp dist/daily_data.json dist-public/; fi  # 일간 레이더도 함께 유지
+          if [ -f dist/thermo_data.json ]; then cp dist/thermo_data.json dist-public/; fi  # 매매 온도도 함께 유지
 
       - name: GitHub Pages 업로드
         if: env.IS_PR != 'true'

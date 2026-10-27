@@ -13,6 +13,7 @@ on:
       - .github/workflows/daily.yml
       - scripts/build_daily_radar.py
       - scripts/daily_radar_backtest.py
+      - scripts/build_trading_temp.py
       - requirements.txt
 
 permissions:
@@ -70,6 +71,16 @@ jobs:
                 "| stale inputs:", stale or "none", "| source_errors:", list(meta["source_errors"]) or "none")
           PY
 
+      # 매매 온도는 레이더와 따로 둡니다. 시세 수집이 실패해도 레이더 배포는 막지 않고, 지난 파일을 그대로 씁니다.
+      - name: 매매 온도 생성
+        run: |
+          if python scripts/build_trading_temp.py --out dist/thermo_data.new.json; then
+            mv dist/thermo_data.new.json dist/thermo_data.json
+          else
+            rm -f dist/thermo_data.new.json
+            echo "::warning::매매 온도 생성 실패 - 지난 thermo_data.json 유지"
+          fi
+
       - name: 공개 dist 모델 버전 검사
         run: python scripts/check_dist_model.py dist
 
@@ -78,7 +89,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: daily-radar-preview
-          path: dist/daily_data.json
+          path: |
+            dist/daily_data.json
+            dist/thermo_data.json
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: 변경사항 커밋
@@ -87,6 +101,7 @@ jobs:
           git config user.name  "gl-bot"
           git config user.email "gl-bot@users.noreply.github.com"
           git add dist/daily_data.json
+          if [ -f dist/thermo_data.json ]; then git add dist/thermo_data.json; fi
           if git diff --staged --quiet; then
             echo "변경 없음"
           else
@@ -99,6 +114,7 @@ jobs:
         run: |
           mkdir -p dist-public
           cp dist/index.html dist/en.html dist/gl_data.json dist/daily_data.json dist-public/
+          if [ -f dist/thermo_data.json ]; then cp dist/thermo_data.json dist-public/; fi
 
       - name: GitHub Pages 업로드
         if: env.IS_PR != 'true'
