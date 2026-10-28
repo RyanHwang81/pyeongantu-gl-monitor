@@ -35,6 +35,7 @@ import pandas as pd
 TEMP_VERSION = 'trading-temp-1'
 WINDOW = 504
 HISTORY_DAYS = 120
+YEARS = 5  # yearly low/high and weekly line for the current year and the 4 before
 UA = {'User-Agent': 'Mozilla/5.0 (pyeongantu-gl-monitor)'}
 
 # (symbol, name, market, kind). Korean sectors are KODEX sector ETFs.
@@ -69,9 +70,9 @@ MARKET = {'US': '^GSPC', 'KR': '^KS11'}
 
 
 def yahoo_close(symbol, tries=4):
-    """Daily adjusted closes for the last ~6 years from Yahoo's chart endpoint."""
+    """Daily adjusted closes for the last ~10 years from Yahoo's chart endpoint."""
     url = (f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}'
-           '?range=6y&interval=1d&includeAdjustedClose=true')
+           '?range=10y&interval=1d&includeAdjustedClose=true')
     last = None
     for i in range(tries):
         try:
@@ -160,6 +161,36 @@ def temperature(s, market_sent, own_weight):
     return df.dropna()
 
 
+def yearly(temp, now_year):
+    """Low/high per calendar year (daily) and a weekly line over the same years.
+
+    Each week shows its Friday value, except the week holding a year's low or
+    high shows that extreme, so the marked points sit on the line.
+    """
+    t = temp[temp.index.year > now_year - YEARS]
+    if t.empty:
+        return None
+    years, extremes = [], {}
+    for y, g in t.groupby(t.index.year):
+        lo, hi = g.idxmin(), g.idxmax()
+        extremes[lo], extremes[hi] = g[lo], g[hi]
+        years.append({
+            'y': int(y), 'from': g.index[0].strftime('%Y-%m-%d'),
+            'lo': round(float(g[lo]), 1), 'lo_d': lo.strftime('%Y-%m-%d'),
+            'hi': round(float(g[hi]), 1), 'hi_d': hi.strftime('%Y-%m-%d'),
+        })
+    week = t.resample('W-FRI')
+    line = week.last()
+    for d, v in extremes.items():
+        line[line.index[line.index >= d][0]] = v
+    line = line.ffill()  # a week with no trading (holidays) keeps the last value; spacing stays weekly
+    return {
+        'start': line.index[0].strftime('%Y-%m-%d'),
+        'weeks': [round(float(v), 1) for v in line],
+        'years': years,
+    }
+
+
 def build(close, now=None):
     now = now or datetime.now(timezone.utc)
     market = {}
@@ -184,6 +215,7 @@ def build(close, now=None):
             'temp': round(float(last.temp), 1), 'sent': round(float(last.sent), 1),
             'wk': round(float(last.wk), 1), 'dl': round(float(last.dl), 1),
             'hist': [round(float(v), 1) for v in hist.iloc[::-2][::-1]],
+            'y5': yearly(df['temp'], df.index[-1].year),
         })
     return {
         'meta': {
@@ -193,6 +225,7 @@ def build(close, now=None):
             'sentiment': 'price-based proxy, not CNN Fear & Greed',
             'source': 'Yahoo Finance daily adjusted close',
             'history': f'last {HISTORY_DAYS} trading days, every 2nd day',
+            'yearly': f'y5: last {YEARS} calendar years, daily low/high and weekly line',
             'source_errors': errors,
         },
         'items': items,
