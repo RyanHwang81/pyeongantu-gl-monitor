@@ -66,10 +66,10 @@ class TradingTempTest(unittest.TestCase):
         mixed = 0.5 * kr.iloc[-1] + 0.5 * own.iloc[-1]
         self.assertAlmostEqual(items['091160.KS']['sent'], round(float(mixed), 1))
 
-    def test_yearly_low_high_and_weekly_line(self):
+    def test_yearly_low_high_on_weekly_price(self):
         s = walk(3, n=2000)
         t = temp.temperature(s, temp.own_sentiment(s), 0)['temp']
-        y5 = temp.yearly(t, 2026)
+        y5 = temp.yearly(t, s, 2026)
         self.assertEqual([r['y'] for r in y5['years']], [2022, 2023, 2024, 2025, 2026])
         start = pd.Timestamp(y5['start'])
         self.assertEqual(start.dayofweek, 4)  # Friday
@@ -78,11 +78,13 @@ class TradingTempTest(unittest.TestCase):
             self.assertAlmostEqual(r['lo'], round(float(g.min()), 1))
             self.assertAlmostEqual(r['hi'], round(float(g.max()), 1))
             self.assertEqual(r['lo_d'], g.idxmin().strftime('%Y-%m-%d'))
-            # the low sits on the weekly line, in the week that holds it
+            self.assertAlmostEqual(r['lo_p'], s[g.idxmin()], delta=s[g.idxmin()] * 1e-4)
+            # the low day's close sits on the weekly price line, in the week that holds it
             week = (pd.Timestamp(r['lo_d']) - start).days + 6
-            self.assertAlmostEqual(y5['weeks'][week // 7], r['lo'])
+            self.assertEqual(y5['price'][week // 7], r['lo_p'])
         last_friday = t.index[-1] + pd.offsets.Week(weekday=4) * 0
-        self.assertEqual(len(y5['weeks']), (last_friday - start).days // 7 + 1)
+        self.assertEqual(len(y5['price']), (last_friday - start).days // 7 + 1)
+        self.assertAlmostEqual(y5['price'][-1], s.iloc[-1], delta=s.iloc[-1] * 1e-4)
 
     def test_missing_symbol_is_reported_not_fatal(self):
         close = synthetic()

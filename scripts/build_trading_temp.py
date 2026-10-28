@@ -161,34 +161,40 @@ def temperature(s, market_sent, own_weight):
     return df.dropna()
 
 
-def yearly(temp, now_year):
-    """Low/high per calendar year (daily) and a weekly line over the same years.
+def yearly(temp, price, now_year):
+    """Per calendar year, the days temperature was lowest and highest, on a weekly price line.
 
-    Each week shows its Friday value, except the week holding a year's low or
-    high shows that extreme, so the marked points sit on the line.
+    The line is the Friday close, except a week holding a year's low or high
+    day shows that day's close, so the marked points sit on the line. The
+    current week always ends at the latest close.
     """
     t = temp[temp.index.year > now_year - YEARS]
     if t.empty:
         return None
-    years, extremes = [], {}
+    p = price.reindex(t.index)
+    years, marks = [], {}
     for y, g in t.groupby(t.index.year):
         lo, hi = g.idxmin(), g.idxmax()
-        extremes[lo], extremes[hi] = g[lo], g[hi]
+        marks[lo], marks[hi] = p[lo], p[hi]
         years.append({
             'y': int(y), 'from': g.index[0].strftime('%Y-%m-%d'),
-            'lo': round(float(g[lo]), 1), 'lo_d': lo.strftime('%Y-%m-%d'),
-            'hi': round(float(g[hi]), 1), 'hi_d': hi.strftime('%Y-%m-%d'),
+            'lo': round(float(g[lo]), 1), 'lo_d': lo.strftime('%Y-%m-%d'), 'lo_p': _price(p[lo]),
+            'hi': round(float(g[hi]), 1), 'hi_d': hi.strftime('%Y-%m-%d'), 'hi_p': _price(p[hi]),
         })
-    week = t.resample('W-FRI')
-    line = week.last()
-    for d, v in extremes.items():
+    line = p.resample('W-FRI').last()
+    for d, v in marks.items():
         line[line.index[line.index >= d][0]] = v
-    line = line.ffill()  # a week with no trading (holidays) keeps the last value; spacing stays weekly
+    line = line.ffill()  # a week with no trading (holidays) keeps the last close; spacing stays weekly
+    line.iloc[-1] = p.iloc[-1]  # the line ends at the latest close
     return {
         'start': line.index[0].strftime('%Y-%m-%d'),
-        'weeks': [round(float(v), 1) for v in line],
+        'price': [_price(v) for v in line],
         'years': years,
     }
+
+
+def _price(v):
+    return float(f'{float(v):.5g}')
 
 
 def build(close, now=None):
@@ -215,7 +221,7 @@ def build(close, now=None):
             'temp': round(float(last.temp), 1), 'sent': round(float(last.sent), 1),
             'wk': round(float(last.wk), 1), 'dl': round(float(last.dl), 1),
             'hist': [round(float(v), 1) for v in hist.iloc[::-2][::-1]],
-            'y5': yearly(df['temp'], df.index[-1].year),
+            'y5': yearly(df['temp'], close[symbol], df.index[-1].year),
         })
     return {
         'meta': {
@@ -225,7 +231,7 @@ def build(close, now=None):
             'sentiment': 'price-based proxy, not CNN Fear & Greed',
             'source': 'Yahoo Finance daily adjusted close',
             'history': f'last {HISTORY_DAYS} trading days, every 2nd day',
-            'yearly': f'y5: last {YEARS} calendar years, daily low/high and weekly line',
+            'yearly': f'y5: last {YEARS} calendar years, days of lowest/highest temp and weekly adjusted close',
             'source_errors': errors,
         },
         'items': items,
