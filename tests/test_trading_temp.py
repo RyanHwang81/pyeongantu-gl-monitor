@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -85,6 +86,17 @@ class TradingTempTest(unittest.TestCase):
         last_friday = t.index[-1] + pd.offsets.Week(weekday=4) * 0
         self.assertEqual(len(y5['price']), (last_friday - start).days // 7 + 1)
         self.assertAlmostEqual(y5['price'][-1], s.iloc[-1], delta=s.iloc[-1] * 1e-4)
+
+    def test_open_session_bar_is_not_a_close(self):
+        s = pd.Series([1.0, 2.0, 3.0], index=pd.to_datetime(['2026-10-29', '2026-10-30', '2026-11-03']))
+        # KRX 2026-11-03 09:00-15:30 KST, gmtoffset +9h
+        start = int(pd.Timestamp('2026-11-03 00:00', tz='UTC').timestamp())
+        meta = {'gmtoffset': 32400, 'currentTradingPeriod': {'regular': {'start': start, 'end': start + 23400}}}
+        during = datetime(2026, 11, 3, 3, 0, tzinfo=timezone.utc)
+        after = datetime(2026, 11, 3, 7, 0, tzinfo=timezone.utc)
+        self.assertEqual(temp.drop_open_session(s, meta, during).index[-1], pd.Timestamp('2026-10-30'))
+        self.assertEqual(temp.drop_open_session(s, meta, after).index[-1], pd.Timestamp('2026-11-03'))
+        self.assertEqual(len(temp.drop_open_session(s, {}, during)), 3)
 
     def test_missing_symbol_is_reported_not_fatal(self):
         close = synthetic()
