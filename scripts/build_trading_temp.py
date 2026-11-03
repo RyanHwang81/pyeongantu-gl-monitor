@@ -69,6 +69,24 @@ US_INPUTS = ['^VIX', 'SPY', 'IEF', 'HYG', 'RSP']
 MARKET = {'US': '^GSPC', 'KR': '^KS11'}
 
 
+def drop_open_session(s, meta, now=None):
+    """Drop today's bar while that market's regular session is still open.
+
+    The daily job can start hours late, so a run can land mid-session; a live
+    price must not be read as that day's close.
+    """
+    regular = (meta.get('currentTradingPeriod') or {}).get('regular') or {}
+    start, end = regular.get('start'), regular.get('end')
+    if not len(s) or start is None or end is None:
+        return s
+    now = (now or datetime.now(timezone.utc)).timestamp()
+    gmt = meta.get('gmtoffset', 0)
+    day = pd.to_datetime(start + gmt, unit='s').normalize()
+    if start <= now < end and s.index[-1] == day:
+        return s.iloc[:-1]
+    return s
+
+
 def yahoo_close(symbol, tries=4):
     """Daily adjusted closes for the last ~10 years from Yahoo's chart endpoint."""
     url = (f'https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}'
@@ -91,7 +109,7 @@ def yahoo_close(symbol, tries=4):
                 if day == s.index[-1]:
                     s.iloc[-1] = float(meta['regularMarketPrice'])
             s = s.dropna()
-            return s[~s.index.duplicated(keep='last')]
+            return drop_open_session(s[~s.index.duplicated(keep='last')], meta)
         except Exception as exc:  # noqa: BLE001
             last = exc
             time.sleep(2 * (i + 1))
